@@ -65,39 +65,51 @@ function updateStatus(isConnected: boolean): void {
 }
 
 function renderNotifications(notifications: StoredNotification[]): void {
+  // Clear existing content
+  notificationListEl.textContent = '';
+
   if (!notifications || notifications.length === 0) {
-    notificationListEl.innerHTML = '<p class="empty-state">No recent notifications</p>';
+    const emptyState = document.createElement('p');
+    emptyState.className = 'empty-state';
+    emptyState.textContent = 'No recent notifications';
+    notificationListEl.appendChild(emptyState);
     return;
   }
 
-  notificationListEl.innerHTML = notifications
-    .map((n, index) => {
-      const time = new Date(n.receivedAt || n.timestamp || '').toLocaleTimeString();
-      return `
-      <div class="notification-item ${n.type}">
-        <button class="notification-dismiss" data-index="${index}" title="Dismiss">&times;</button>
-        <span class="notification-type">${TYPE_LABELS[n.type] || n.type}</span>
-        <span class="notification-message">${escapeHtml(n.message || 'No message')}</span>
-        <span class="notification-time">${time}</span>
-      </div>
-    `;
-    })
-    .join('');
+  notifications.forEach((n, index) => {
+    const time = new Date(n.receivedAt || n.timestamp || '').toLocaleTimeString();
 
-  // Add click handlers for dismiss buttons
-  notificationListEl.querySelectorAll('.notification-dismiss').forEach((btn) => {
-    btn.addEventListener('click', async (e) => {
+    const item = document.createElement('div');
+    item.className = `notification-item ${n.type}`;
+
+    const dismissBtn = document.createElement('button');
+    dismissBtn.className = 'notification-dismiss';
+    dismissBtn.dataset.index = String(index);
+    dismissBtn.title = 'Dismiss';
+    dismissBtn.textContent = '×';
+    dismissBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const index = parseInt((btn as HTMLButtonElement).dataset.index || '0', 10);
       await browser.runtime.sendMessage({ type: 'removeNotification', index });
     });
-  });
-}
 
-function escapeHtml(text: string): string {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+    const typeSpan = document.createElement('span');
+    typeSpan.className = 'notification-type';
+    typeSpan.textContent = TYPE_LABELS[n.type] || n.type;
+
+    const messageSpan = document.createElement('span');
+    messageSpan.className = 'notification-message';
+    messageSpan.textContent = n.message || 'No message';
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'notification-time';
+    timeSpan.textContent = time;
+
+    item.appendChild(dismissBtn);
+    item.appendChild(typeSpan);
+    item.appendChild(messageSpan);
+    item.appendChild(timeSpan);
+    notificationListEl.appendChild(item);
+  });
 }
 
 function applyTheme(darkMode: boolean): void {
