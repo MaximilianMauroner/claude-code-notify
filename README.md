@@ -14,30 +14,23 @@ curl -fsSL https://raw.githubusercontent.com/MaximilianMauroner/claude-code-noti
 
 **What this does:**
 1. Clones the repository to `~/.claude/claude-code-notify`
-2. Installs server dependencies (npm packages)
+2. Builds the notification server
 3. Makes hook scripts executable
 4. Configures Claude Code hooks in `~/.claude/settings.json`
 
 **Requirements:** git, node, npm
 
-### Load the Browser Extension (Manual Step)
+### Install the Browser Extension
 
-The browser extension must be loaded manually:
+Install the extension from your browser's store:
 
 #### Chrome / Chromium / Brave
 
-1. Open `chrome://extensions`
-2. Enable "Developer mode" (toggle in top right)
-3. Click "Load unpacked"
-4. Select `~/.claude/claude-code-notify/extension`
+Install from the [Chrome Web Store](https://chromewebstore.google.com/) (search for "Claude Code Notify")
 
 #### Firefox
 
-1. Open `about:debugging#/runtime/this-firefox`
-2. Click "Load Temporary Add-on"
-3. Select `~/.claude/claude-code-notify/extension/manifest.firefox.json`
-
-> **Note:** Firefox requires reloading the extension after each browser restart.
+Install from [Firefox Add-ons](https://addons.mozilla.org/) (search for "Claude Code Notify")
 
 ### Verify Installation
 
@@ -67,11 +60,12 @@ If you prefer to set things up manually or want to understand what the install s
 git clone https://github.com/MaximilianMauroner/claude-code-notify.git ~/.claude/claude-code-notify
 ```
 
-### 2. Install Dependencies
+### 2. Build the Server
 
 ```bash
 cd ~/.claude/claude-code-notify/server
 npm install
+npm run build
 ```
 
 ### 3. Make Scripts Executable
@@ -123,9 +117,9 @@ Add the following to your `~/.claude/settings.json` (create it if it doesn't exi
 }
 ```
 
-### 5. Load the Browser Extension
+### 5. Install the Browser Extension
 
-Follow the browser extension instructions in the [Installation](#load-the-browser-extension-manual-step) section above.
+Install from the [Chrome Web Store](https://chromewebstore.google.com/) or [Firefox Add-ons](https://addons.mozilla.org/) (search for "Claude Code Notify").
 
 ---
 
@@ -246,34 +240,37 @@ pgrep -f "node.*index.js"
 ### Project Structure
 
 ```
-claude-input/
+claude-code-notify/
 ├── server/
 │   ├── package.json
-│   └── index.js              # WebSocket + HTTP server
+│   ├── src/
+│   │   └── index.ts          # WebSocket + HTTP server
+│   └── dist/                 # Compiled output
 ├── extension/
 │   ├── manifest.json         # Chrome manifest (v3)
 │   ├── manifest.firefox.json # Firefox manifest (v2)
-│   ├── background.js         # Service worker
+│   ├── src/
+│   │   ├── background.ts     # Service worker
+│   │   └── popup.ts          # Popup logic
 │   ├── popup.html            # Settings popup
-│   ├── popup.js              # Popup logic
 │   ├── popup.css             # Popup styles
+│   ├── dist/                 # Compiled output
 │   └── icons/
-│       ├── icon16.png
-│       ├── icon48.png
-│       └── icon128.png
 ├── hooks/
 │   ├── notify.sh             # Hook script for notifications
 │   └── ensure-server.sh      # Auto-starts server if not running
-├── claude-hooks.json         # Hook configuration
 └── README.md
 ```
 
 ### Running in Development
 
-1. Start the server: `cd server && npm start`
-2. Load the extension in developer mode
-3. Make changes to extension files
-4. Click "Reload" on the extension in `chrome://extensions` or `about:debugging`
+1. Build and start the server: `cd server && npm install && npm run build && npm start`
+2. Build the extension: `cd extension && npm install && npm run build`
+3. Load the extension in developer mode:
+   - **Chrome**: Go to `chrome://extensions`, enable "Developer mode", click "Load unpacked", select the `extension` folder
+   - **Firefox**: Go to `about:debugging#/runtime/this-firefox`, click "Load Temporary Add-on", select `extension/manifest.firefox.json`
+4. Make changes to extension files and run `npm run build` in the extension folder
+5. Click "Reload" on the extension in `chrome://extensions` or `about:debugging`
 
 ## License
 

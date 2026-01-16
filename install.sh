@@ -38,7 +38,7 @@ check_requirements() {
 
 # Step 1: Clone or update repository
 clone_or_update_repo() {
-  echo "[1/5] Setting up repository..."
+  echo "[1/4] Setting up repository..."
 
   # Ensure ~/.claude directory exists
   mkdir -p "$HOME/.claude"
@@ -56,26 +56,19 @@ clone_or_update_repo() {
   fi
 }
 
-# Step 2: Install npm dependencies and build
+# Step 2: Install npm dependencies and build server
 install_dependencies() {
-  echo "[2/5] Installing dependencies and building..."
+  echo "[2/4] Installing dependencies and building server..."
 
-  # Build server
   cd "$INSTALL_DIR/server"
   npm install --silent
   npm run build --silent
   echo "  - Server built"
-
-  # Build extension
-  cd "$INSTALL_DIR/extension"
-  npm install --silent
-  npm run build --silent
-  echo "  - Extension built"
 }
 
 # Step 3: Make scripts executable and start server
 make_scripts_executable() {
-  echo "[3/5] Setting up scripts..."
+  echo "[3/4] Setting up scripts..."
   chmod +x "$INSTALL_DIR/hooks/notify.sh"
   chmod +x "$INSTALL_DIR/hooks/ensure-server.sh"
   echo "  - Scripts are now executable"
@@ -88,7 +81,7 @@ make_scripts_executable() {
 
 # Step 4: Backup and configure Claude settings
 configure_claude_settings() {
-  echo "[4/5] Configuring Claude Code settings..."
+  echo "[4/4] Configuring Claude Code settings..."
 
   # Create settings file if it doesn't exist
   if [ ! -f "$CLAUDE_SETTINGS" ]; then
@@ -167,37 +160,28 @@ console.log('  - Hooks configured successfully');
 "
 }
 
-# Step 5: Print browser extension instructions
+# Print browser extension instructions
 print_extension_instructions() {
-  echo "[5/5] Browser extension setup..."
-  echo ""
-  echo "==================================="
-  echo "  MANUAL STEP REQUIRED"
-  echo "==================================="
-  echo ""
-  echo "The browser extension needs to be loaded manually:"
-  echo ""
-  echo "For Chrome/Chromium/Brave:"
-  echo "  1. Open chrome://extensions"
-  echo "  2. Enable 'Developer mode' (toggle in top-right)"
-  echo "  3. Click 'Load unpacked'"
-  echo "  4. Select: $INSTALL_DIR/extension"
-  echo ""
-  echo "For Firefox:"
-  echo "  1. Open about:debugging#/runtime/this-firefox"
-  echo "  2. Click 'Load Temporary Add-on'"
-  echo "  3. Select: $INSTALL_DIR/extension/manifest.firefox.json"
-  echo "  Note: Firefox requires reloading after each restart"
   echo ""
   echo "==================================="
   echo "  INSTALLATION COMPLETE"
   echo "==================================="
   echo ""
+  echo "Next step: Install the browser extension"
+  echo ""
+  echo "  Chrome/Chromium/Brave:"
+  echo "    Install from the Chrome Web Store"
+  echo ""
+  echo "  Firefox:"
+  echo "    Install from Firefox Add-ons"
+  echo ""
+  echo "  Find links at: https://github.com/MaximilianMauroner/claude-code-notify"
+  echo ""
   echo "The notification server will start automatically when"
   echo "Claude Code triggers a notification hook."
   echo ""
   echo "To verify everything works:"
-  echo "  1. Load the browser extension (see above)"
+  echo "  1. Install the browser extension from the store"
   echo "  2. Start Claude Code"
   echo "  3. Interact until Claude needs input or finishes"
   echo "  4. You should see a browser notification!"
