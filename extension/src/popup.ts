@@ -19,6 +19,7 @@ const soundEnabledEl = document.getElementById('soundEnabled') as HTMLInputEleme
 const notifyOnIdleEl = document.getElementById('notifyOnIdle') as HTMLInputElement;
 const notifyOnStopEl = document.getElementById('notifyOnStop') as HTMLInputElement;
 const darkModeEl = document.getElementById('darkMode') as HTMLInputElement;
+const debugModeEl = document.getElementById('debugMode') as HTMLInputElement;
 const testBtn = document.getElementById('testBtn') as HTMLButtonElement;
 const reconnectBtn = document.getElementById('reconnectBtn') as HTMLButtonElement;
 const clearBtn = document.getElementById('clearBtn') as HTMLButtonElement;
@@ -36,6 +37,7 @@ async function init(): Promise<void> {
   notifyOnIdleEl.checked = currentSettings.notifyOnIdle;
   notifyOnStopEl.checked = currentSettings.notifyOnStop;
   darkModeEl.checked = currentSettings.darkMode;
+  debugModeEl.checked = currentSettings.debugMode;
   hideSetupHelpEl.checked = currentSettings.hideDisconnectedHelp;
   applyTheme(currentSettings.darkMode);
 
@@ -110,6 +112,7 @@ async function saveSettings(): Promise<void> {
     notifyOnIdle: notifyOnIdleEl.checked,
     notifyOnStop: notifyOnStopEl.checked,
     darkMode: darkModeEl.checked,
+    debugMode: debugModeEl.checked,
     hideDisconnectedHelp: hideSetupHelpEl.checked,
   };
 
@@ -122,6 +125,7 @@ notificationsEnabledEl.addEventListener('change', saveSettings);
 soundEnabledEl.addEventListener('change', saveSettings);
 notifyOnIdleEl.addEventListener('change', saveSettings);
 notifyOnStopEl.addEventListener('change', saveSettings);
+debugModeEl.addEventListener('change', saveSettings);
 darkModeEl.addEventListener('change', () => {
   applyTheme(darkModeEl.checked);
   saveSettings();

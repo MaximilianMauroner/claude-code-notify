@@ -6,9 +6,9 @@
     "server"
   ],
   "scripts": {
-    "build": "npm run build -w extension && npm run build -w server",
-    "build:extension": "npm run build -w extension",
-    "build:server": "npm run build -w server",
+    "build": "cd extension && bun run build && cd ../server && bun run build",
+    "build:extension": "cd extension && bun run build",
+    "build:server": "cd server && bun run build",
     "typecheck": "tsc --noEmit -p extension && tsc --noEmit -p server",
     "typecheck:extension": "tsc --noEmit -p extension",
     "typecheck:server": "tsc --noEmit -p server"

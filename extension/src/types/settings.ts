@@ -5,6 +5,7 @@ export interface Settings {
   notifyOnIdle: boolean;
   darkMode: boolean;
   hideDisconnectedHelp: boolean;
+  debugMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -14,4 +15,5 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyOnIdle: true,
   darkMode: false,
   hideDisconnectedHelp: false,
+  debugMode: false,
 };

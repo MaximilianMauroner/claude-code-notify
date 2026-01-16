@@ -22,6 +22,28 @@ const KEEPALIVE_INTERVAL = 20000;
 const MAX_RECENT_NOTIFICATIONS = 10;
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen.html';
 
+// Debug mode state (cached for sync access)
+let debugMode = false;
+
+// Debug logging helpers
+function debugLog(...args: unknown[]): void {
+  if (debugMode) {
+    console.log('[Claude Notifier]', ...args);
+  }
+}
+
+function debugError(...args: unknown[]): void {
+  if (debugMode) {
+    console.error('[Claude Notifier]', ...args);
+  }
+}
+
+function debugWarn(...args: unknown[]): void {
+  if (debugMode) {
+    console.warn('[Claude Notifier]', ...args);
+  }
+}
+
 // Track if offscreen document exists
 let creatingOffscreen: Promise<void> | null = null;
 
@@ -77,8 +99,9 @@ async function setupOffscreenDocument(): Promise<void> {
 async function playNotificationSound(): Promise<void> {
   try {
     await chrome.runtime.sendMessage({ type: 'PLAY_SOUND' });
+    debugLog('Played notification sound');
   } catch (error) {
-    console.error('[Claude Notifier] Error playing sound:', error);
+    debugError('Error playing sound:', error);
   }
 }
 
@@ -132,11 +155,13 @@ function connect(): void {
     return;
   }
 
+  debugLog('Attempting to connect to', WS_URL);
+
   try {
     ws = new WebSocket(WS_URL);
 
     ws.onopen = (): void => {
-      console.log('[Claude Notifier] Connected to server');
+      debugLog('Connected to server');
       isConnected = true;
       reconnectDelay = RECONNECT_INITIAL_DELAY;
       updateBadge('connected');
@@ -147,6 +172,7 @@ function connect(): void {
     ws.onmessage = async (event: MessageEvent): Promise<void> => {
       try {
         const data = JSON.parse(event.data as string) as IncomingNotification;
+        debugLog('Received message:', data.type);
 
         if (data.type === 'connected' || data.type === 'pong') {
           return;
@@ -158,18 +184,19 @@ function connect(): void {
         // Check if notifications are enabled
         const settings = await getSettings();
         if (!settings.notificationsEnabled) {
+          debugLog('Notifications disabled, skipping');
           return;
         }
 
         // Show browser notification
         await showNotification(data);
       } catch (error) {
-        console.error('[Claude Notifier] Error processing message:', error);
+        debugError('Error processing message:', error);
       }
     };
 
     ws.onclose = (): void => {
-      console.log('[Claude Notifier] Disconnected from server');
+      debugLog('Disconnected from server');
       isConnected = false;
       updateBadge('disconnected');
       stopKeepalive();
@@ -178,12 +205,12 @@ function connect(): void {
     };
 
     ws.onerror = (error: Event): void => {
-      console.error('[Claude Notifier] WebSocket error:', error);
+      debugError('WebSocket error:', error);
       isConnected = false;
       updateBadge('error');
     };
   } catch (error) {
-    console.error('[Claude Notifier] Connection error:', error);
+    debugError('Connection error:', error);
     scheduleReconnect();
   }
 }
@@ -194,7 +221,7 @@ function scheduleReconnect(): void {
     clearTimeout(reconnectTimeout);
   }
 
-  console.log(`[Claude Notifier] Reconnecting in ${reconnectDelay}ms...`);
+  debugLog(`Reconnecting in ${reconnectDelay}ms...`);
 
   reconnectTimeout = setTimeout(() => {
     connect();
@@ -291,7 +318,7 @@ async function showNotification(
       await setupOffscreenDocument();
       useCustomSound = true;
     } catch (error) {
-      console.warn('[Claude Notifier] Offscreen audio unavailable, using system sound.', error);
+      debugWarn('Offscreen audio unavailable, using system sound.', error);
     }
   }
 
@@ -309,8 +336,9 @@ async function showNotification(
 
   try {
     await browser.notifications.create(notificationId, notificationOptions);
+    debugLog('Created notification:', data.type, notificationId);
   } catch (error) {
-    console.error('[Claude Notifier] Error creating notification:', error);
+    debugError('Error creating notification:', error);
   }
 
   // Play sound if enabled (unless explicitly skipped)
@@ -330,7 +358,9 @@ async function showNotification(
 async function getSettings(): Promise<Settings> {
   try {
     const result = await browser.storage.local.get('settings');
-    return { ...DEFAULT_SETTINGS, ...(result.settings as Partial<Settings>) };
+    const settings = { ...DEFAULT_SETTINGS, ...(result.settings as Partial<Settings>) };
+    debugMode = settings.debugMode;
+    return settings;
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -376,6 +406,7 @@ async function loadState(): Promise<void> {
       'recentNotifications',
       'unreadCount',
       'lastNotificationType',
+      'settings',
     ]);
     if (result.recentNotifications) {
       recentNotifications = result.recentNotifications as StoredNotification[];
@@ -385,6 +416,11 @@ async function loadState(): Promise<void> {
     }
     if (result.lastNotificationType) {
       lastNotificationType = result.lastNotificationType as NotificationType;
+    }
+    // Load debug mode setting
+    if (result.settings) {
+      const settings = result.settings as Partial<Settings>;
+      debugMode = settings.debugMode ?? DEFAULT_SETTINGS.debugMode;
     }
     // Restore badge state
     if (unreadCount > 0) {
@@ -464,6 +500,17 @@ browser.notifications.onClicked.addListener((notificationId: string): void => {
   browser.notifications.clear(notificationId);
   // Clear badge when user clicks a notification
   clearUnreadCount();
+});
+
+// Listen for settings changes to update debug mode
+browser.storage.onChanged.addListener((changes) => {
+  if (changes.settings?.newValue) {
+    const newSettings = changes.settings.newValue as Partial<Settings>;
+    if (typeof newSettings.debugMode === 'boolean') {
+      debugMode = newSettings.debugMode;
+      debugLog('Debug mode', debugMode ? 'enabled' : 'disabled');
+    }
+  }
 });
 
 // Initialize
