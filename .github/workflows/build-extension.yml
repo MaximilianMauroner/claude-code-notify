@@ -29,23 +29,51 @@ jobs:
         working-directory: extension
         run: npm run build
 
-      - name: Prepare extension package
+      - name: Prepare Chrome extension package
         run: |
-          mkdir -p build/extension
-          cp extension/manifest.json build/extension/
-          cp extension/popup.html build/extension/
-          cp extension/popup.css build/extension/
-          mkdir -p build/extension/dist
-          cp extension/dist/background.js build/extension/dist/
-          cp extension/dist/popup.js build/extension/dist/
-          mkdir -p build/extension/icons
-          cp extension/icons/icon16.png build/extension/icons/
-          cp extension/icons/icon48.png build/extension/icons/
-          cp extension/icons/icon128.png build/extension/icons/
+          mkdir -p build/chrome
+          cp extension/manifest.json build/chrome/
+          cp extension/popup.html build/chrome/
+          cp extension/popup.css build/chrome/
+          cp extension/offscreen.html build/chrome/
+          mkdir -p build/chrome/dist
+          cp extension/dist/background.js build/chrome/dist/
+          cp extension/dist/popup.js build/chrome/dist/
+          cp extension/dist/offscreen.js build/chrome/dist/
+          mkdir -p build/chrome/icons
+          cp extension/icons/icon16.png build/chrome/icons/
+          cp extension/icons/icon48.png build/chrome/icons/
+          cp extension/icons/icon128.png build/chrome/icons/
 
-      - name: Upload artifact
+      - name: Prepare Firefox extension package
+        run: |
+          mkdir -p build/firefox
+          cp extension/manifest.firefox.json build/firefox/manifest.json
+          cp extension/popup.html build/firefox/
+          cp extension/popup.css build/firefox/
+          mkdir -p build/firefox/dist
+          cp extension/dist/background.js build/firefox/dist/
+          cp extension/dist/popup.js build/firefox/dist/
+          mkdir -p build/firefox/icons
+          cp extension/icons/icon16.png build/firefox/icons/
+          cp extension/icons/icon48.png build/firefox/icons/
+          cp extension/icons/icon128.png build/firefox/icons/
+
+      - name: Create ZIP archives
+        run: |
+          cd build/chrome && zip -r ../claude-code-notifier-chrome.zip .
+          cd ../firefox && zip -r ../claude-code-notifier-firefox.zip .
+
+      - name: Upload Chrome artifact
         uses: actions/upload-artifact@v4
         with:
           name: claude-code-notifier-chrome
-          path: build/extension/*
+          path: build/claude-code-notifier-chrome.zip
+          retention-days: 90
+
+      - name: Upload Firefox artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-code-notifier-firefox
+          path: build/claude-code-notifier-firefox.zip
           retention-days: 90
