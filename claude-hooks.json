@@ -1,0 +1,35 @@
+{
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_HOOK_NAME=permission_prompt $CLAUDE_INPUT_DIR/hooks/notify.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_HOOK_NAME=idle_prompt $CLAUDE_INPUT_DIR/hooks/notify.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_HOOK_NAME=stop $CLAUDE_INPUT_DIR/hooks/notify.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
