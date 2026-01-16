@@ -7,6 +7,7 @@ INSTALL_DIR="$HOME/.claude/claude-code-notify"
 CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 PID_FILE="/tmp/claude-notify-server.pid"
 LOCK_FILE="/tmp/claude-notify-server.lock"
+LOCK_DIR="/tmp/claude-notify-server.lock.d"
 LOG_FILE="/tmp/claude-notify-server.log"
 
 echo "====================================="
@@ -156,6 +157,11 @@ cleanup_temp_files() {
 
   if [ -f "$LOCK_FILE" ]; then
     rm -f "$LOCK_FILE"
+    cleaned=$((cleaned + 1))
+  fi
+
+  if [ -d "$LOCK_DIR" ]; then
+    rmdir "$LOCK_DIR" 2>/dev/null
     cleaned=$((cleaned + 1))
   fi
 

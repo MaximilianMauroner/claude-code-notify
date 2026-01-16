@@ -20,43 +20,68 @@ if check_health; then
   exit 0
 fi
 
-# Server not running, need to start it
-# Use flock to prevent race conditions when multiple Claude instances start simultaneously
-(
-  # Acquire exclusive lock (wait up to 10 seconds)
-  flock -w 10 200 || exit 1
+# Portable file locking function (works on both Linux and macOS)
+acquire_lock() {
+  local lock_fd=200
+  local timeout=10
+  local waited=0
 
-  # Double-check health after acquiring lock (another process may have started it)
+  # Create lock file if it doesn't exist
+  touch "$LOCK_FILE"
+
+  # Try to acquire lock
+  while [ $waited -lt $timeout ]; do
+    # Use mkdir as atomic lock (portable across Linux/macOS)
+    if mkdir "${LOCK_FILE}.d" 2>/dev/null; then
+      trap 'rmdir "${LOCK_FILE}.d" 2>/dev/null' EXIT
+      return 0
+    fi
+    sleep 0.5
+    waited=$((waited + 1))
+  done
+
+  return 1
+}
+
+# Server not running, need to start it
+# Acquire lock to prevent race conditions when multiple Claude instances start simultaneously
+if ! acquire_lock; then
+  # Could not acquire lock, another process is starting the server
+  # Wait a bit and check if server is now running
+  sleep 2
   if check_health; then
     exit 0
   fi
+  exit 1
+fi
 
-  # Check if there's a stale PID file
-  if [ -f "$PID_FILE" ]; then
-    OLD_PID=$(cat "$PID_FILE" 2>/dev/null)
-    if [ -n "$OLD_PID" ] && ! kill -0 "$OLD_PID" 2>/dev/null; then
-      # Process doesn't exist, remove stale PID file
-      rm -f "$PID_FILE"
-    fi
-  fi
-
-  # Start the server
-  cd "$SERVER_DIR" || exit 1
-  nohup node index.js > /tmp/claude-notify-server.log 2>&1 &
-
-  # Wait for server to be ready
-  WAITED=0
-  while [ $WAITED -lt $MAX_WAIT ]; do
-    sleep 0.5
-    WAITED=$((WAITED + 1))
-    if check_health; then
-      exit 0
-    fi
-  done
-
-  # Server didn't start in time, but don't fail - let the notification continue anyway
+# Double-check health after acquiring lock (another process may have started it)
+if check_health; then
   exit 0
+fi
 
-) 200>"$LOCK_FILE"
+# Check if there's a stale PID file
+if [ -f "$PID_FILE" ]; then
+  OLD_PID=$(cat "$PID_FILE" 2>/dev/null)
+  if [ -n "$OLD_PID" ] && ! kill -0 "$OLD_PID" 2>/dev/null; then
+    # Process doesn't exist, remove stale PID file
+    rm -f "$PID_FILE"
+  fi
+fi
 
+# Start the server
+cd "$SERVER_DIR" || exit 1
+nohup node index.js > /tmp/claude-notify-server.log 2>&1 &
+
+# Wait for server to be ready
+WAITED=0
+while [ $WAITED -lt $MAX_WAIT ]; do
+  sleep 0.5
+  WAITED=$((WAITED + 1))
+  if check_health; then
+    exit 0
+  fi
+done
+
+# Server didn't start in time, but don't fail - let the notification continue anyway
 exit 0

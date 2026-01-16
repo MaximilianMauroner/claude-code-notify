@@ -2,6 +2,133 @@
 
 Get browser notifications when Claude Code (CLI) needs your input, permission approval, or has finished a task.
 
+## Installation
+
+### Quick Install (Recommended)
+
+Run this one-liner to automatically set up everything:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MaximilianMauroner/claude-code-notify/main/install.sh | bash
+```
+
+**What this does:**
+1. Clones the repository to `~/.claude/claude-code-notify`
+2. Installs server dependencies (npm packages)
+3. Makes hook scripts executable
+4. Configures Claude Code hooks in `~/.claude/settings.json`
+
+**Requirements:** git, node, npm
+
+### Load the Browser Extension (Manual Step)
+
+The browser extension must be loaded manually:
+
+#### Chrome / Chromium / Brave
+
+1. Open `chrome://extensions`
+2. Enable "Developer mode" (toggle in top right)
+3. Click "Load unpacked"
+4. Select `~/.claude/claude-code-notify/extension`
+
+#### Firefox
+
+1. Open `about:debugging#/runtime/this-firefox`
+2. Click "Load Temporary Add-on"
+3. Select `~/.claude/claude-code-notify/extension/manifest.firefox.json`
+
+> **Note:** Firefox requires reloading the extension after each browser restart.
+
+### Verify Installation
+
+1. Click the extension icon in your browser - it should show "Connected"
+2. Start Claude Code and interact until it needs input or finishes a task
+3. You should see a browser notification
+
+### Uninstall
+
+To remove the extension completely:
+
+```bash
+~/.claude/claude-code-notify/uninstall.sh
+```
+
+This removes the hooks from settings, stops the server, and deletes the installation directory. You'll need to manually remove the browser extension.
+
+---
+
+## Manual Installation
+
+If you prefer to set things up manually or want to understand what the install script does:
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/MaximilianMauroner/claude-code-notify.git ~/.claude/claude-code-notify
+```
+
+### 2. Install Dependencies
+
+```bash
+cd ~/.claude/claude-code-notify/server
+npm install
+```
+
+### 3. Make Scripts Executable
+
+```bash
+chmod +x ~/.claude/claude-code-notify/hooks/notify.sh
+chmod +x ~/.claude/claude-code-notify/hooks/ensure-server.sh
+```
+
+### 4. Configure Claude Code Hooks
+
+Add the following to your `~/.claude/settings.json` (create it if it doesn't exist):
+
+```json
+{
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_HOOK_NAME=permission_prompt ~/.claude/claude-code-notify/hooks/notify.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_HOOK_NAME=idle_prompt ~/.claude/claude-code-notify/hooks/notify.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_HOOK_NAME=stop ~/.claude/claude-code-notify/hooks/notify.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 5. Load the Browser Extension
+
+Follow the browser extension instructions in the [Installation](#load-the-browser-extension-manual-step) section above.
+
+---
+
 ## Architecture
 
 ```
@@ -14,106 +141,6 @@ Get browser notifications when Claude Code (CLI) needs your input, permission ap
 1. **Claude Code Hooks** - Send HTTP requests when events occur
 2. **Local WebSocket Server** - Receives hook events, broadcasts to browser
 3. **Browser Extension** - Connects to server, shows notifications
-
-## Quick Start
-
-### 1. Install Server Dependencies
-
-```bash
-cd server
-npm install
-```
-
-The server will **auto-start** when Claude Code launches (no need to run manually).
-
-### 2. Load the Browser Extension
-
-#### Chrome
-
-1. Open `chrome://extensions`
-2. Enable "Developer mode" (toggle in top right)
-3. Click "Load unpacked"
-4. Select the `extension/` folder
-
-#### Firefox
-
-1. Open `about:debugging`
-2. Click "This Firefox"
-3. Click "Load Temporary Add-on"
-4. Select `extension/manifest.firefox.json`
-
-### 3. Make Hook Scripts Executable
-
-```bash
-chmod +x hooks/notify.sh hooks/ensure-server.sh
-```
-
-### 4. Configure Claude Code Hooks
-
-Add the hook configuration to your Claude Code settings. You have two options:
-
-#### Option A: Set environment variable and merge config
-
-Set the `CLAUDE_INPUT_DIR` environment variable to point to this repository:
-
-```bash
-export CLAUDE_INPUT_DIR="/path/to/claude-input"
-```
-
-Then add the hooks from `claude-hooks.json` to your `~/.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "Notification": [
-      {
-        "matcher": "permission_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "CLAUDE_HOOK_NAME=permission_prompt $CLAUDE_INPUT_DIR/hooks/notify.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "idle_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "CLAUDE_HOOK_NAME=idle_prompt $CLAUDE_INPUT_DIR/hooks/notify.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "CLAUDE_HOOK_NAME=stop $CLAUDE_INPUT_DIR/hooks/notify.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-#### Option B: Use absolute paths
-
-Replace `$CLAUDE_INPUT_DIR` with the absolute path to this repository in your settings.
-
-### 5. Verify Setup
-
-1. Click the extension icon in your browser - it should show "Connected"
-2. Test with curl:
-   ```bash
-   curl -X POST http://localhost:3099/notify \
-     -H "Content-Type: application/json" \
-     -d '{"type":"permission_prompt","message":"Test notification"}'
-   ```
-3. You should see a browser notification appear
 
 ## Notification Types
 
