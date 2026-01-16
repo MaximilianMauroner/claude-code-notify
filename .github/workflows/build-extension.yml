@@ -29,23 +29,23 @@ jobs:
         working-directory: extension
         run: npm run build
 
-      - name: Create extension ZIP
-        working-directory: extension
+      - name: Prepare extension package
         run: |
-          mkdir -p ../build
-          zip -r ../build/claude-code-notifier-chrome.zip \
-            manifest.json \
-            popup.html \
-            popup.css \
-            dist/background.js \
-            dist/popup.js \
-            icons/icon16.png \
-            icons/icon48.png \
-            icons/icon128.png
+          mkdir -p build/extension
+          cp extension/manifest.json build/extension/
+          cp extension/popup.html build/extension/
+          cp extension/popup.css build/extension/
+          mkdir -p build/extension/dist
+          cp extension/dist/background.js build/extension/dist/
+          cp extension/dist/popup.js build/extension/dist/
+          mkdir -p build/extension/icons
+          cp extension/icons/icon16.png build/extension/icons/
+          cp extension/icons/icon48.png build/extension/icons/
+          cp extension/icons/icon128.png build/extension/icons/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: claude-code-notifier-chrome
-          path: build/claude-code-notifier-chrome.zip
+          path: build/extension/*
           retention-days: 90
