@@ -1,0 +1,51 @@
+name: Build Extension ZIP
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'extension/**'
+      - '.github/workflows/build-extension.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: extension
+        run: npm install
+
+      - name: Build extension
+        working-directory: extension
+        run: npm run build
+
+      - name: Create extension ZIP
+        working-directory: extension
+        run: |
+          mkdir -p ../build
+          zip -r ../build/claude-code-notifier-chrome.zip \
+            manifest.json \
+            popup.html \
+            popup.css \
+            dist/background.js \
+            dist/popup.js \
+            icons/icon16.png \
+            icons/icon48.png \
+            icons/icon128.png
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-code-notifier-chrome
+          path: build/claude-code-notifier-chrome.zip
+          retention-days: 90
