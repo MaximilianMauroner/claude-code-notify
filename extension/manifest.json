@@ -5,11 +5,18 @@
   "description": "Get browser notifications when Claude Code needs input, permission, or feedback",
   "permissions": [
     "notifications",
-    "storage"
+    "storage",
+    "offscreen"
   ],
   "host_permissions": [
     "http://localhost:3099/*",
     "ws://localhost:3099/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*.png"],
+      "matches": ["<all_urls>"]
+    }
   ],
   "background": {
     "service_worker": "dist/background.js"

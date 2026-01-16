@@ -1,5 +1,6 @@
 import browser from 'webextension-polyfill';
 import type { Settings, StoredNotification, NotificationType, StatusResponse } from './types';
+import { DEFAULT_SETTINGS } from './types';
 
 // Type labels for display
 const TYPE_LABELS: Record<NotificationType, string> = {
@@ -11,25 +12,32 @@ const TYPE_LABELS: Record<NotificationType, string> = {
 // DOM elements
 const statusEl = document.getElementById('status') as HTMLDivElement;
 const statusTextEl = statusEl.querySelector('.status-text') as HTMLSpanElement;
+const setupHelpEl = document.getElementById('setupHelp') as HTMLDivElement;
+const hideSetupHelpEl = document.getElementById('hideSetupHelp') as HTMLInputElement;
 const notificationsEnabledEl = document.getElementById('notificationsEnabled') as HTMLInputElement;
 const soundEnabledEl = document.getElementById('soundEnabled') as HTMLInputElement;
 const notifyOnIdleEl = document.getElementById('notifyOnIdle') as HTMLInputElement;
 const notifyOnStopEl = document.getElementById('notifyOnStop') as HTMLInputElement;
+const darkModeEl = document.getElementById('darkMode') as HTMLInputElement;
 const testBtn = document.getElementById('testBtn') as HTMLButtonElement;
 const reconnectBtn = document.getElementById('reconnectBtn') as HTMLButtonElement;
 const clearBtn = document.getElementById('clearBtn') as HTMLButtonElement;
 const notificationListEl = document.getElementById('notificationList') as HTMLDivElement;
+let currentSettings: Settings = { ...DEFAULT_SETTINGS };
 
 // Load settings and status
 async function init(): Promise<void> {
   // Load settings
   const result = await browser.storage.local.get(['settings', 'isConnected', 'recentNotifications']);
 
-  const settings = (result.settings as Partial<Settings>) || {};
-  notificationsEnabledEl.checked = settings.notificationsEnabled !== false;
-  soundEnabledEl.checked = settings.soundEnabled !== false;
-  notifyOnIdleEl.checked = settings.notifyOnIdle !== false;
-  notifyOnStopEl.checked = settings.notifyOnStop !== false;
+  currentSettings = { ...DEFAULT_SETTINGS, ...(result.settings as Partial<Settings>) };
+  notificationsEnabledEl.checked = currentSettings.notificationsEnabled;
+  soundEnabledEl.checked = currentSettings.soundEnabled;
+  notifyOnIdleEl.checked = currentSettings.notifyOnIdle;
+  notifyOnStopEl.checked = currentSettings.notifyOnStop;
+  darkModeEl.checked = currentSettings.darkMode;
+  hideSetupHelpEl.checked = currentSettings.hideDisconnectedHelp;
+  applyTheme(currentSettings.darkMode);
 
   // Update connection status
   updateStatus(result.isConnected as boolean);
@@ -51,6 +59,7 @@ async function init(): Promise<void> {
 function updateStatus(isConnected: boolean): void {
   statusEl.className = `status ${isConnected ? 'connected' : 'disconnected'}`;
   statusTextEl.textContent = isConnected ? 'Connected' : 'Disconnected';
+  setupHelpEl.classList.toggle('hidden', isConnected || currentSettings.hideDisconnectedHelp);
 }
 
 function renderNotifications(notifications: StoredNotification[]): void {
@@ -60,10 +69,11 @@ function renderNotifications(notifications: StoredNotification[]): void {
   }
 
   notificationListEl.innerHTML = notifications
-    .map((n) => {
+    .map((n, index) => {
       const time = new Date(n.receivedAt || n.timestamp || '').toLocaleTimeString();
       return `
       <div class="notification-item ${n.type}">
+        <button class="notification-dismiss" data-index="${index}" title="Dismiss">&times;</button>
         <span class="notification-type">${TYPE_LABELS[n.type] || n.type}</span>
         <span class="notification-message">${escapeHtml(n.message || 'No message')}</span>
         <span class="notification-time">${time}</span>
@@ -71,12 +81,25 @@ function renderNotifications(notifications: StoredNotification[]): void {
     `;
     })
     .join('');
+
+  // Add click handlers for dismiss buttons
+  notificationListEl.querySelectorAll('.notification-dismiss').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const index = parseInt((btn as HTMLButtonElement).dataset.index || '0', 10);
+      await browser.runtime.sendMessage({ type: 'removeNotification', index });
+    });
+  });
 }
 
 function escapeHtml(text: string): string {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+function applyTheme(darkMode: boolean): void {
+  document.body.classList.toggle('dark', darkMode);
 }
 
 // Save settings when changed
@@ -86,8 +109,11 @@ async function saveSettings(): Promise<void> {
     soundEnabled: soundEnabledEl.checked,
     notifyOnIdle: notifyOnIdleEl.checked,
     notifyOnStop: notifyOnStopEl.checked,
+    darkMode: darkModeEl.checked,
+    hideDisconnectedHelp: hideSetupHelpEl.checked,
   };
 
+  currentSettings = settings;
   await browser.storage.local.set({ settings });
 }
 
@@ -96,6 +122,14 @@ notificationsEnabledEl.addEventListener('change', saveSettings);
 soundEnabledEl.addEventListener('change', saveSettings);
 notifyOnIdleEl.addEventListener('change', saveSettings);
 notifyOnStopEl.addEventListener('change', saveSettings);
+darkModeEl.addEventListener('change', () => {
+  applyTheme(darkModeEl.checked);
+  saveSettings();
+});
+hideSetupHelpEl.addEventListener('change', () => {
+  saveSettings();
+  updateStatus(statusEl.classList.contains('connected'));
+});
 
 testBtn.addEventListener('click', () => {
   browser.runtime.sendMessage({ type: 'testNotification' });
@@ -119,6 +153,18 @@ browser.storage.onChanged.addListener((changes) => {
   }
   if (changes.recentNotifications) {
     renderNotifications((changes.recentNotifications.newValue as StoredNotification[]) || []);
+  }
+  if (changes.settings) {
+    const nextSettings = changes.settings.newValue as Settings | undefined;
+    if (nextSettings && typeof nextSettings.darkMode === 'boolean') {
+      currentSettings = { ...DEFAULT_SETTINGS, ...nextSettings };
+      darkModeEl.checked = nextSettings.darkMode;
+      applyTheme(nextSettings.darkMode);
+      if (typeof nextSettings.hideDisconnectedHelp === 'boolean') {
+        hideSetupHelpEl.checked = nextSettings.hideDisconnectedHelp;
+      }
+      updateStatus(statusEl.classList.contains('connected'));
+    }
   }
 });
 

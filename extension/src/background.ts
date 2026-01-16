@@ -20,6 +20,67 @@ const RECONNECT_INITIAL_DELAY = 1000;
 const RECONNECT_MAX_DELAY = 30000;
 const KEEPALIVE_INTERVAL = 20000;
 const MAX_RECENT_NOTIFICATIONS = 10;
+const OFFSCREEN_DOCUMENT_PATH = 'offscreen.html';
+
+// Track if offscreen document exists
+let creatingOffscreen: Promise<void> | null = null;
+
+async function hasOffscreenDocument(): Promise<boolean> {
+  try {
+    if (chrome.runtime?.getContexts) {
+      const existingContexts = await chrome.runtime.getContexts({
+        contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+        documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)],
+      });
+      return existingContexts.length > 0;
+    }
+  } catch {
+    // Fall back to other checks if runtime contexts are unavailable.
+  }
+
+  if (chrome.offscreen && 'hasDocument' in chrome.offscreen) {
+    try {
+      return await chrome.offscreen.hasDocument();
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+async function setupOffscreenDocument(): Promise<void> {
+  if (!chrome.offscreen?.createDocument) {
+    throw new Error('Offscreen API not available');
+  }
+
+  // Check if offscreen document already exists
+  if (await hasOffscreenDocument()) {
+    return;
+  }
+
+  // Create offscreen document if we're not already creating one
+  if (creatingOffscreen) {
+    await creatingOffscreen;
+  } else {
+    creatingOffscreen = chrome.offscreen.createDocument({
+      url: OFFSCREEN_DOCUMENT_PATH,
+      reasons: [chrome.offscreen.Reason.AUDIO_PLAYBACK],
+      justification: 'Play notification sound for Claude Code alerts',
+    });
+    await creatingOffscreen;
+    creatingOffscreen = null;
+  }
+}
+
+// Play notification sound via offscreen document
+async function playNotificationSound(): Promise<void> {
+  try {
+    await chrome.runtime.sendMessage({ type: 'PLAY_SOUND' });
+  } catch (error) {
+    console.error('[Claude Notifier] Error playing sound:', error);
+  }
+}
 
 // State
 let ws: WebSocket | null = null;
@@ -208,28 +269,54 @@ function clearUnreadCount(): void {
 }
 
 // Show notification
-async function showNotification(data: IncomingNotification): Promise<void> {
+async function showNotification(
+  data: IncomingNotification,
+  options?: { skipSound?: boolean }
+): Promise<void> {
   if (data.type === 'connected' || data.type === 'pong') return;
 
   const config: NotificationConfig = NOTIFICATION_CONFIG[data.type];
   if (!config) return;
 
   const settings = await getSettings();
+  const shouldPlaySound = settings.soundEnabled && !options?.skipSound;
+  let useCustomSound = false;
 
   // Check notification type settings
   if (data.type === 'stop' && !settings.notifyOnStop) return;
   if (data.type === 'idle_prompt' && !settings.notifyOnIdle) return;
 
-  const notificationId = `claude-${Date.now()}`;
+  if (shouldPlaySound) {
+    try {
+      await setupOffscreenDocument();
+      useCustomSound = true;
+    } catch (error) {
+      console.warn('[Claude Notifier] Offscreen audio unavailable, using system sound.', error);
+    }
+  }
 
-  const options: browser.Notifications.CreateNotificationOptions = {
+  const notificationId = `claude-${Date.now()}`;
+  const iconUrl = browser.runtime.getURL(config.iconUrl);
+
+  const notificationOptions: browser.Notifications.CreateNotificationOptions = {
     type: 'basic',
-    iconUrl: config.iconUrl,
+    iconUrl,
     title: config.title,
     message: data.message || 'Claude Code requires your attention',
+    // Suppress OS sounds when disabled or when custom audio is available.
+    silent: !shouldPlaySound || useCustomSound,
   };
 
-  await browser.notifications.create(notificationId, options);
+  try {
+    await browser.notifications.create(notificationId, notificationOptions);
+  } catch (error) {
+    console.error('[Claude Notifier] Error creating notification:', error);
+  }
+
+  // Play sound if enabled (unless explicitly skipped)
+  if (shouldPlaySound && useCustomSound) {
+    playNotificationSound();
+  }
 
   // Auto-close non-interactive notifications after 5 seconds
   if (!config.requireInteraction) {
@@ -334,6 +421,7 @@ browser.runtime.onMessage.addListener(
         message: 'This is a test notification from Claude Code Notifier',
       };
       addRecentNotification(testData);
+      // Show notification - sound will play based on soundEnabled setting
       showNotification(testData);
       return Promise.resolve({ success: true });
     }
@@ -351,6 +439,20 @@ browser.runtime.onMessage.addListener(
       recentNotifications = [];
       clearUnreadCount();
       return Promise.resolve({ success: true });
+    }
+
+    if (msg.type === 'removeNotification') {
+      const index = (msg as { type: string; index: number }).index;
+      if (index >= 0 && index < recentNotifications.length) {
+        recentNotifications.splice(index, 1);
+        // Update unread count if needed
+        if (unreadCount > 0) {
+          unreadCount = Math.max(0, unreadCount - 1);
+        }
+        updateNotificationBadge();
+        saveState();
+      }
+      return Promise.resolve({ success: true, notifications: recentNotifications });
     }
 
     return undefined;

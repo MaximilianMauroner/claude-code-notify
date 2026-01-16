@@ -3,11 +3,15 @@ export interface Settings {
   soundEnabled: boolean;
   notifyOnStop: boolean;
   notifyOnIdle: boolean;
+  darkMode: boolean;
+  hideDisconnectedHelp: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   notificationsEnabled: true,
-  soundEnabled: true,
+  soundEnabled: false,
   notifyOnStop: true,
   notifyOnIdle: true,
+  darkMode: false,
+  hideDisconnectedHelp: false,
 };

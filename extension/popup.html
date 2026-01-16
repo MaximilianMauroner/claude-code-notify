@@ -10,9 +10,23 @@
   <div class="container">
     <header>
       <h1>Claude Code Notifier</h1>
-      <div id="status" class="status disconnected">
-        <span class="status-dot"></span>
-        <span class="status-text">Disconnected</span>
+      <div class="status-wrap">
+        <div id="status" class="status disconnected">
+          <span class="status-dot"></span>
+          <span class="status-text">Disconnected</span>
+        </div>
+        <div id="setupHelp" class="setup-help tooltip hidden">
+          <div class="setup-title">Setup help</div>
+          <ol>
+            <li>Start Claude Code to auto-launch the notifier server.</li>
+            <li>If it still shows disconnected, run the install script or start the server manually.</li>
+            <li>Click Reconnect once the server is running.</li>
+          </ol>
+          <label class="setup-opt">
+            <input type="checkbox" id="hideSetupHelp">
+            <span>Don&#39;t show again</span>
+          </label>
+        </div>
       </div>
     </header>
 
@@ -26,7 +40,7 @@
       </label>
 
       <label class="toggle">
-        <input type="checkbox" id="soundEnabled" checked>
+        <input type="checkbox" id="soundEnabled">
         <span class="toggle-slider"></span>
         <span class="toggle-label">Sound for notifications</span>
       </label>
@@ -41,6 +55,12 @@
         <input type="checkbox" id="notifyOnStop" checked>
         <span class="toggle-slider"></span>
         <span class="toggle-label">Notify when Claude finishes</span>
+      </label>
+
+      <label class="toggle">
+        <input type="checkbox" id="darkMode">
+        <span class="toggle-slider"></span>
+        <span class="toggle-label">Dark mode</span>
       </label>
     </section>
 

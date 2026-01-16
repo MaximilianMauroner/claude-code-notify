@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const PORT = 3099;
 const PID_FILE = '/tmp/claude-notify-server.pid';
+const IDLE_SHUTDOWN_MS = 5 * 60 * 1000;
 
 type NotificationType = 'permission_prompt' | 'idle_prompt' | 'stop';
 
@@ -46,6 +47,8 @@ interface PongMessage {
 
 // Store connected WebSocket clients
 const clients = new Set<WebSocket>();
+let idleShutdownTimer: NodeJS.Timeout | null = null;
+let isShuttingDown = false;
 
 const VALID_TYPES: NotificationType[] = ['permission_prompt', 'idle_prompt', 'stop'];
 
@@ -132,9 +135,30 @@ const httpServer = http.createServer(
 // Create WebSocket server attached to HTTP server
 const wss = new WebSocketServer({ server: httpServer });
 
+function clearIdleShutdown(): void {
+  if (idleShutdownTimer) {
+    clearTimeout(idleShutdownTimer);
+    idleShutdownTimer = null;
+  }
+}
+
+function scheduleIdleShutdown(): void {
+  if (idleShutdownTimer || isShuttingDown) {
+    return;
+  }
+  idleShutdownTimer = setTimeout(() => {
+    idleShutdownTimer = null;
+    if (clients.size === 0 && !isShuttingDown) {
+      console.log(`[${new Date().toISOString()}] No active clients, shutting down.`);
+      shutdown();
+    }
+  }, IDLE_SHUTDOWN_MS);
+}
+
 wss.on('connection', (ws: WebSocket, req: IncomingMessage): void => {
   const clientId = `${req.socket.remoteAddress}:${Date.now()}`;
   clients.add(ws);
+  clearIdleShutdown();
 
   console.log(`[${new Date().toISOString()}] Client connected: ${clientId} (total: ${clients.size})`);
 
@@ -162,11 +186,17 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage): void => {
   ws.on('close', (): void => {
     clients.delete(ws);
     console.log(`[${new Date().toISOString()}] Client disconnected: ${clientId} (total: ${clients.size})`);
+    if (clients.size === 0) {
+      scheduleIdleShutdown();
+    }
   });
 
   ws.on('error', (error: Error): void => {
     console.error(`[${new Date().toISOString()}] WebSocket error:`, error);
     clients.delete(ws);
+    if (clients.size === 0) {
+      scheduleIdleShutdown();
+    }
   });
 });
 
@@ -185,6 +215,10 @@ httpServer.listen(PORT, (): void => {
 ║  PID file:      ${PID_FILE}                       ║
 ╚═══════════════════════════════════════════════════════════════╝
   `);
+
+  if (clients.size === 0) {
+    scheduleIdleShutdown();
+  }
 });
 
 // Clean up PID file
@@ -200,6 +234,10 @@ function cleanupPidFile(): void {
 
 // Graceful shutdown
 function shutdown(): void {
+  if (isShuttingDown) {
+    return;
+  }
+  isShuttingDown = true;
   console.log('\nShutting down server...');
 
   // Clean up PID file

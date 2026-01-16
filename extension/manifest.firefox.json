@@ -9,6 +9,9 @@
     "http://localhost:3099/*",
     "ws://localhost:3099/*"
   ],
+  "web_accessible_resources": [
+    "icons/*.png"
+  ],
   "browser_specific_settings": {
     "gecko": {
       "id": "claude-code-notifier@example.com",

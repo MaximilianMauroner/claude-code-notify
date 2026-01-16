@@ -71,7 +71,7 @@ fi
 
 # Start the server
 cd "$SERVER_DIR" || exit 1
-nohup node index.js > /tmp/claude-notify-server.log 2>&1 &
+nohup node dist/index.js > /tmp/claude-notify-server.log 2>&1 &
 
 # Wait for server to be ready
 WAITED=0
