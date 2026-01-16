@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "node esbuild.config.mjs",
-    "watch": "node esbuild.config.mjs --watch"
+    "watch": "node esbuild.config.mjs --watch",
+    "package:chrome": "npm run build && rm -rf ../build/chrome && mkdir -p ../build/chrome/dist ../build/chrome/icons && cp manifest.json popup.html popup.css offscreen.html ../build/chrome/ && cp dist/background.js dist/popup.js dist/offscreen.js ../build/chrome/dist/ && cp icons/icon16.png icons/icon48.png icons/icon128.png ../build/chrome/icons/ && cd ../build/chrome && zip -r ../claude-code-notifier-chrome.zip .",
+    "package:firefox": "npm run build && rm -rf ../build/firefox && mkdir -p ../build/firefox/dist ../build/firefox/icons && cp manifest.firefox.json ../build/firefox/manifest.json && cp popup.html popup.css ../build/firefox/ && cp dist/background.js dist/popup.js ../build/firefox/dist/ && cp icons/icon16.png icons/icon48.png icons/icon128.png ../build/firefox/icons/ && cd ../build/firefox && zip -r ../claude-code-notifier-firefox.zip ."
   },
   "dependencies": {
     "webextension-polyfill": "^0.12.0"
