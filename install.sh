@@ -56,20 +56,34 @@ clone_or_update_repo() {
   fi
 }
 
-# Step 2: Install npm dependencies
+# Step 2: Install npm dependencies and build
 install_dependencies() {
-  echo "[2/5] Installing dependencies..."
+  echo "[2/5] Installing dependencies and building..."
+
+  # Build server
   cd "$INSTALL_DIR/server"
   npm install --silent
-  echo "  - Dependencies installed"
+  npm run build --silent
+  echo "  - Server built"
+
+  # Build extension
+  cd "$INSTALL_DIR/extension"
+  npm install --silent
+  npm run build --silent
+  echo "  - Extension built"
 }
 
-# Step 3: Make scripts executable
+# Step 3: Make scripts executable and start server
 make_scripts_executable() {
   echo "[3/5] Setting up scripts..."
   chmod +x "$INSTALL_DIR/hooks/notify.sh"
   chmod +x "$INSTALL_DIR/hooks/ensure-server.sh"
   echo "  - Scripts are now executable"
+
+  # Start the server in the background
+  echo "  - Starting notification server..."
+  "$INSTALL_DIR/hooks/ensure-server.sh"
+  echo "  - Server started (will auto-restart when needed)"
 }
 
 # Step 4: Backup and configure Claude settings
