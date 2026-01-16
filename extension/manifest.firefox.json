@@ -6,7 +6,8 @@
   "permissions": [
     "notifications",
     "storage",
-    "http://localhost:3099/*"
+    "http://localhost:3099/*",
+    "ws://localhost:3099/*"
   ],
   "browser_specific_settings": {
     "gecko": {
@@ -15,7 +16,7 @@
     }
   },
   "background": {
-    "scripts": ["background.js"],
+    "scripts": ["dist/background.js"],
     "persistent": false
   },
   "browser_action": {

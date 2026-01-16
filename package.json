@@ -1,0 +1,16 @@
+{
+  "name": "claude-input",
+  "private": true,
+  "workspaces": [
+    "extension",
+    "server"
+  ],
+  "scripts": {
+    "build": "npm run build -w extension && npm run build -w server",
+    "build:extension": "npm run build -w extension",
+    "build:server": "npm run build -w server",
+    "typecheck": "tsc --noEmit -p extension && tsc --noEmit -p server",
+    "typecheck:extension": "tsc --noEmit -p extension",
+    "typecheck:server": "tsc --noEmit -p server"
+  }
+}

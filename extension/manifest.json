@@ -8,10 +8,11 @@
     "storage"
   ],
   "host_permissions": [
-    "http://localhost:3099/*"
+    "http://localhost:3099/*",
+    "ws://localhost:3099/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "dist/background.js"
   },
   "action": {
     "default_popup": "popup.html",

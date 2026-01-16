@@ -1,0 +1,18 @@
+{
+  "name": "claude-code-notifier-extension",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch"
+  },
+  "dependencies": {
+    "webextension-polyfill": "^0.12.0"
+  },
+  "devDependencies": {
+    "@types/webextension-polyfill": "^0.12.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0"
+  }
+}
