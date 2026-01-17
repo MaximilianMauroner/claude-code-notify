@@ -1,5 +1,6 @@
 {
   "name": "claude-input",
+  "version": "1.0.1",
   "private": true,
   "workspaces": [
     "extension",
@@ -11,6 +12,8 @@
     "build:server": "cd server && bun run build",
     "typecheck": "tsc --noEmit -p extension && tsc --noEmit -p server",
     "typecheck:extension": "tsc --noEmit -p extension",
-    "typecheck:server": "tsc --noEmit -p server"
+    "typecheck:server": "tsc --noEmit -p server",
+    "sync-version": "node sync-version.mjs",
+    "version": "node sync-version.mjs && git add extension/package.json server/package.json extension/manifest.json extension/manifest.firefox.json"
   }
 }
