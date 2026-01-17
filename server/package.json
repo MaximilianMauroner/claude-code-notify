@@ -1,6 +1,6 @@
 {
   "name": "claude-input-notification-server",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Local WebSocket server for Claude Code browser notifications",
   "type": "module",
   "main": "dist/index.js",

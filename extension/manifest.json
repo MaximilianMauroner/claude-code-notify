@@ -1,14 +1,25 @@
 {
   "manifest_version": 3,
   "name": "Claude Code Notifier",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Get browser notifications when Claude Code needs input, permission, or feedback",
-  "permissions": ["notifications", "storage", "offscreen"],
-  "host_permissions": ["http://localhost:3099/*", "ws://localhost:3099/*"],
+  "permissions": [
+    "notifications",
+    "storage",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "http://localhost:3099/*",
+    "ws://localhost:3099/*"
+  ],
   "web_accessible_resources": [
     {
-      "resources": ["icons/*.png"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "icons/*.png"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "background": {
