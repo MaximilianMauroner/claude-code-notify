@@ -1,32 +1,42 @@
 {
   "hooks": {
-    "Notification": [
+    "PermissionRequest": [
       {
-        "matcher": "permission_prompt",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "CLAUDE_HOOK_NAME=permission_prompt $CLAUDE_INPUT_DIR/hooks/notify.sh"
+            "command": "\"$HOME/.claude/claude-code-notify/hooks/notify.sh\"",
+            "timeout": 15,
+            "async": true,
+            "onFailure": "continue"
           }
         ]
-      },
+      }
+    ],
+    "Notification": [
       {
-        "matcher": "idle_prompt",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "CLAUDE_HOOK_NAME=idle_prompt $CLAUDE_INPUT_DIR/hooks/notify.sh"
+            "command": "\"$HOME/.claude/claude-code-notify/hooks/notify.sh\"",
+            "timeout": 15,
+            "async": true,
+            "onFailure": "continue"
           }
         ]
       }
     ],
     "Stop": [
       {
-        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "CLAUDE_HOOK_NAME=stop $CLAUDE_INPUT_DIR/hooks/notify.sh"
+            "command": "\"$HOME/.claude/claude-code-notify/hooks/notify.sh\"",
+            "timeout": 15,
+            "async": true,
+            "onFailure": "continue"
           }
         ]
       }

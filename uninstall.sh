@@ -34,77 +34,7 @@ remove_hooks_from_settings() {
   # Backup settings before modification
   cp "$CLAUDE_SETTINGS" "$CLAUDE_SETTINGS.backup.$(date +%Y%m%d_%H%M%S)"
 
-  # Use Node.js to remove our hooks from settings
-  node -e "
-const fs = require('fs');
-const settingsPath = '$CLAUDE_SETTINGS';
-const installDir = '$INSTALL_DIR';
-
-// Read existing settings
-let settings = {};
-try {
-  const content = fs.readFileSync(settingsPath, 'utf8');
-  settings = JSON.parse(content);
-} catch (e) {
-  console.log('  - Could not read settings file');
-  process.exit(0);
-}
-
-if (!settings.hooks) {
-  console.log('  - No hooks configured, nothing to remove');
-  process.exit(0);
-}
-
-let modified = false;
-
-// Remove Notification hooks that reference our install directory
-if (settings.hooks.Notification && Array.isArray(settings.hooks.Notification)) {
-  const filtered = settings.hooks.Notification.filter(hook => {
-    if (hook.hooks && Array.isArray(hook.hooks)) {
-      return !hook.hooks.some(h => h.command && h.command.includes(installDir));
-    }
-    return true;
-  });
-  if (filtered.length !== settings.hooks.Notification.length) {
-    modified = true;
-    if (filtered.length === 0) {
-      delete settings.hooks.Notification;
-    } else {
-      settings.hooks.Notification = filtered;
-    }
-  }
-}
-
-// Remove Stop hooks that reference our install directory
-if (settings.hooks.Stop && Array.isArray(settings.hooks.Stop)) {
-  const filtered = settings.hooks.Stop.filter(hook => {
-    if (hook.hooks && Array.isArray(hook.hooks)) {
-      return !hook.hooks.some(h => h.command && h.command.includes(installDir));
-    }
-    return true;
-  });
-  if (filtered.length !== settings.hooks.Stop.length) {
-    modified = true;
-    if (filtered.length === 0) {
-      delete settings.hooks.Stop;
-    } else {
-      settings.hooks.Stop = filtered;
-    }
-  }
-}
-
-// Remove empty hooks object
-if (settings.hooks && Object.keys(settings.hooks).length === 0) {
-  delete settings.hooks;
-}
-
-if (modified) {
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
-  console.log('  - Hooks removed from settings');
-} else {
-  console.log('  - No matching hooks found to remove');
-}
-"
+  node "$INSTALL_DIR/hooks/claude-settings.mjs" uninstall "$CLAUDE_SETTINGS"
 }
 
 # Step 2: Stop running server
