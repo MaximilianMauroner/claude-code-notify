@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { deliverNotification, postNotification, withFileLock } from './send-notification.mjs';
+import { deliverNotification, isSameModuleEntry, postNotification, withFileLock } from './send-notification.mjs';
 
 const permissionRequest = {
   hook_event_name: 'PermissionRequest',
@@ -104,6 +104,22 @@ test('postNotification accepts only 2xx and treats errors and timeouts as failur
     await badServer.close();
     await hangServer.close();
   }
+});
+
+test('a logical symlink path still counts as this module', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-notify-entry-'));
+  const realDir = path.join(root, 'real');
+  fs.mkdirSync(realDir);
+  const realFile = path.join(realDir, 'send-notification.mjs');
+  fs.writeFileSync(realFile, '');
+  const linkDir = path.join(root, 'link');
+  fs.symlinkSync(realDir, linkDir);
+  const logicalFile = path.join(linkDir, 'send-notification.mjs');
+
+  assert.equal(isSameModuleEntry(logicalFile, fs.realpathSync(realFile)), true);
+  assert.equal(isSameModuleEntry(logicalFile, realFile), true);
+  assert.equal(isSameModuleEntry(path.join(root, 'other.mjs'), realFile), false);
+  assert.equal(isSameModuleEntry('', realFile), false);
 });
 
 test('the dedupe lock is exclusive across overlapping updates', async () => {

@@ -173,10 +173,22 @@ async function main() {
   });
 }
 
+// Node realpaths import.meta.url and leaves argv[1] as the path it was given.
+// notify.sh uses logical pwd, so a symlinked ~/.claude makes those strings differ.
+export function isSameModuleEntry(argvPath, modulePath) {
+  if (!argvPath || !modulePath) return false;
+  const fromArgv = path.resolve(argvPath);
+  const fromModule = path.resolve(modulePath);
+  if (fromArgv === fromModule) return true;
+  try {
+    return fs.realpathSync(fromArgv) === fs.realpathSync(fromModule);
+  } catch {
+    return false;
+  }
+}
+
 function isDirectRun() {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  return path.resolve(entry) === fileURLToPath(import.meta.url);
+  return isSameModuleEntry(process.argv[1], fileURLToPath(import.meta.url));
 }
 
 if (isDirectRun()) {
