@@ -69,9 +69,18 @@ if [ -f "$PID_FILE" ]; then
   fi
 fi
 
-# Start the server
+# Start the server with the node binary recorded at install time.
+NODE_BIN="${CLAUDE_NOTIFY_NODE:-}"
+if [ -z "$NODE_BIN" ] && [ -f "$SCRIPT_DIR/node-path" ]; then
+  IFS= read -r NODE_BIN < "$SCRIPT_DIR/node-path"
+fi
+if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then
+  echo "claude-code-notify: node is not executable at ${NODE_BIN:-unknown}" >&2
+  exit 1
+fi
+
 cd "$SERVER_DIR" || exit 1
-nohup node dist/index.js > /tmp/claude-notify-server.log 2>&1 &
+nohup "$NODE_BIN" dist/index.js > /tmp/claude-notify-server.log 2>&1 &
 
 # Wait for server to be ready
 WAITED=0
@@ -83,5 +92,5 @@ while [ $WAITED -lt $MAX_WAIT ]; do
   fi
 done
 
-# Server didn't start in time, but don't fail - let the notification continue anyway
-exit 0
+echo "claude-code-notify: notification server did not become ready" >&2
+exit 1

@@ -73,7 +73,10 @@ npm run build
 ```bash
 chmod +x ~/.claude/claude-code-notify/hooks/notify.sh
 chmod +x ~/.claude/claude-code-notify/hooks/ensure-server.sh
+node -p 'process.execPath' > ~/.claude/claude-code-notify/hooks/node-path
 ```
+
+The hook runs that recorded binary. Claude Code does not put `node` on the hook `PATH`.
 
 ### 4. Configure Claude Code Hooks
 
@@ -152,7 +155,7 @@ Install from the [Chrome Web Store](https://chromewebstore.google.com/) or [Fire
 
 ## Notification Types
 
-Permission alerts come from `PermissionRequest`, which runs when Claude asks to use a tool. `permission_prompt` still arrives for a sandboxed command's network request, because that prompt does not run `PermissionRequest`. A `permission_prompt` for the same session within 15 seconds of a `PermissionRequest` is skipped, so the same tool prompt is not announced twice.
+Permission alerts come from `PermissionRequest`, which runs when Claude asks to use a tool. The credit for that alert is stored only after the notification server accepts it. Each delivered `PermissionRequest` then consumes one following `permission_prompt` for the same session. A `permission_prompt` with no remaining credit, including a sandboxed command's network request, is still delivered.
 
 Every other `Notification` type is delivered. A type this version does not know about still shows a generic "Claude Code" notification. When Claude includes a message, that text is shown instead of the default.
 
@@ -246,7 +249,7 @@ Check server status.
 ### Hooks not triggering
 
 1. Verify Claude Code settings are configured correctly
-2. Check that scripts are executable: `chmod +x hooks/notify.sh hooks/ensure-server.sh`
+2. Check that scripts are executable and the node binary is recorded: `chmod +x hooks/notify.sh hooks/ensure-server.sh && node -p 'process.execPath' > hooks/node-path`
 3. Test the hook manually: `echo '{"hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"ls"}}' | ./hooks/notify.sh`
 
 ### Manual Server Management
@@ -292,7 +295,7 @@ claude-code-notify/
 │   ├── dist/                 # Compiled output
 │   └── icons/
 ├── hooks/
-│   ├── notify.sh             # Hook entrypoint (always exits 0)
+│   ├── notify.sh             # Hook entrypoint; runs the recorded node binary
 │   ├── send-notification.mjs # Reads hook JSON and posts /notify
 │   ├── notifications.mjs     # Event to title and message
 │   ├── claude-settings.mjs   # Idempotent settings install and removal

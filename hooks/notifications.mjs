@@ -2,8 +2,6 @@
 // Titles and default messages follow the Notification and PermissionRequest
 // sections of https://code.claude.com/docs/en/hooks
 
-export const PERMISSION_PROMPT_DEDUPE_MS = 15000;
-
 // Documented Notification matchers. An unknown notification_type falls through
 // to the generic copy so a future type is still delivered.
 export const NOTIFICATION_COPY = {
@@ -94,12 +92,32 @@ function sessionIdOf(event) {
   return typeof event.session_id === 'string' ? event.session_id : '';
 }
 
-function recentlySawPermission(seen, sessionId, now) {
-  if (!seen || typeof seen !== 'object') return false;
-  const at = seen[sessionId];
-  if (typeof at !== 'number' || !Number.isFinite(at)) return false;
-  const age = now - at;
-  return age >= 0 && age < PERMISSION_PROMPT_DEDUPE_MS;
+function pendingTable(pending) {
+  if (!pending || typeof pending !== 'object' || Array.isArray(pending)) return {};
+  return pending;
+}
+
+// Outstanding PermissionRequest alerts that were actually delivered for a session.
+export function permissionPendingCount(pending, sessionId) {
+  const count = pendingTable(pending)[sessionId || ''];
+  if (typeof count !== 'number' || !Number.isInteger(count) || count <= 0) return 0;
+  return count;
+}
+
+export function notePermissionSent(pending, sessionId) {
+  const key = sessionId || '';
+  const next = { ...pendingTable(pending) };
+  next[key] = permissionPendingCount(next, key) + 1;
+  return next;
+}
+
+export function notePermissionPromptConsumed(pending, sessionId) {
+  const key = sessionId || '';
+  const count = permissionPendingCount(pending, key);
+  const next = { ...pendingTable(pending) };
+  if (count <= 1) delete next[key];
+  else next[key] = count - 1;
+  return next;
 }
 
 function permissionMessage(event) {
@@ -134,14 +152,15 @@ function notificationFromType(event, type) {
 
 /**
  * @param {unknown} event Hook JSON from stdin.
- * @param {{ now?: number, permissionSeen?: Record<string, number> }} [options]
- * @returns {{ type: string, title: string, message: string, rememberPermission?: boolean, sessionId?: string } | null}
+ * @param {{ permissionPending?: Record<string, number> }} [options]
+ * Counts are PermissionRequest alerts already delivered for each session.
+ * A permission_prompt is dropped only while its session still has some of those.
+ * @returns {{ type?: string, title?: string, message?: string, rememberPermission?: boolean, consumePermission?: boolean, sessionId?: string } | null}
  */
 export function mapHookEvent(event, options = {}) {
   const body = asObject(event);
   if (!body) return null;
 
-  const now = typeof options.now === 'number' && Number.isFinite(options.now) ? options.now : Date.now();
   const name = body.hook_event_name;
 
   if (name === 'PermissionRequest') {
@@ -156,11 +175,9 @@ export function mapHookEvent(event, options = {}) {
 
   if (name === 'Notification') {
     const rawType = text(body.notification_type) || 'notification';
-    if (
-      rawType === 'permission_prompt' &&
-      recentlySawPermission(options.permissionSeen, sessionIdOf(body), now)
-    ) {
-      return null;
+    const sessionId = sessionIdOf(body);
+    if (rawType === 'permission_prompt' && permissionPendingCount(options.permissionPending, sessionId) > 0) {
+      return { consumePermission: true, sessionId };
     }
     return notificationFromType(body, rawType);
   }
@@ -175,4 +192,33 @@ export function mapHookEvent(event, options = {}) {
   }
 
   return null;
+}
+
+/**
+ * Applies a dropped permission_prompt to the pending counts.
+ * Sending a PermissionRequest does not change the count here; that happens
+ * only after the alert is delivered.
+ * @param {unknown} event
+ * @param {Record<string, number>} [pending]
+ */
+export function planNotification(event, pending = {}) {
+  const mapped = mapHookEvent(event, { permissionPending: pending });
+  if (!mapped) return { action: 'ignore', pending };
+  if (mapped.consumePermission) {
+    return {
+      action: 'drop',
+      pending: notePermissionPromptConsumed(pending, mapped.sessionId || ''),
+      sessionId: mapped.sessionId || '',
+    };
+  }
+  return {
+    action: mapped.rememberPermission ? 'send-permission' : 'send',
+    pending,
+    sessionId: mapped.sessionId || '',
+    notification: {
+      type: mapped.type,
+      title: mapped.title,
+      message: mapped.message,
+    },
+  };
 }

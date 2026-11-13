@@ -71,7 +71,9 @@ make_scripts_executable() {
   echo "[3/4] Setting up scripts..."
   chmod +x "$INSTALL_DIR/hooks/notify.sh"
   chmod +x "$INSTALL_DIR/hooks/ensure-server.sh"
+  node -p 'process.execPath' > "$INSTALL_DIR/hooks/node-path"
   echo "  - Scripts are now executable"
+  echo "  - Recorded node at $(cat "$INSTALL_DIR/hooks/node-path")"
 
   # Start the server in the background
   echo "  - Starting notification server..."

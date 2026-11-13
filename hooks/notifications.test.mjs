@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { NOTIFICATION_COPY, PERMISSION_PROMPT_DEDUPE_MS, mapHookEvent } from './notifications.mjs';
+import { NOTIFICATION_COPY, mapHookEvent, planNotification } from './notifications.mjs';
 
 const DOCUMENTED = [
   ['permission_prompt', 'Claude needs permission', 'Claude Code needs your permission to proceed'],
@@ -149,37 +149,49 @@ test('PermissionRequest without a tool detail names the tool', () => {
   );
 });
 
-test('a late permission_prompt for the same session is skipped inside the dedupe window', () => {
-  const seen = { abc: 10_000 };
-  const now = 10_000 + PERMISSION_PROMPT_DEDUPE_MS - 1;
-  assert.equal(
-    mapHookEvent(
-      { hook_event_name: 'Notification', notification_type: 'permission_prompt', session_id: 'abc' },
-      { now, permissionSeen: seen }
-    ),
-    null
-  );
+function permissionPrompt(sessionId) {
+  return { hook_event_name: 'Notification', notification_type: 'permission_prompt', session_id: sessionId };
+}
+
+test('drops only as many permission_prompts as PermissionRequest alerts recorded for that session', () => {
+  let pending = { abc: 2, other: 1 };
+  const first = planNotification(permissionPrompt('abc'), pending);
+  assert.equal(first.action, 'drop');
+  pending = first.pending;
+  assert.equal(pending.abc, 1);
+
+  const second = planNotification(permissionPrompt('abc'), pending);
+  assert.equal(second.action, 'drop');
+  pending = second.pending;
+  assert.equal(pending.abc, undefined);
+
+  const third = planNotification(permissionPrompt('abc'), pending);
+  assert.equal(third.action, 'send');
+  assert.equal(third.notification.type, 'permission_prompt');
+  assert.equal(pending.other, 1);
 });
 
-test('permission_prompt still fires for another session or after the window', () => {
-  const seen = { abc: 10_000 };
-  const other = mapHookEvent(
-    { hook_event_name: 'Notification', notification_type: 'permission_prompt', session_id: 'other' },
-    { now: 12_000, permissionSeen: seen }
-  );
+test('a permission_prompt for another session is not consumed by this session\'s credits', () => {
+  const other = mapHookEvent(permissionPrompt('other'), { permissionPending: { abc: 3 } });
   assert.equal(other.type, 'permission_prompt');
-
-  const later = mapHookEvent(
-    { hook_event_name: 'Notification', notification_type: 'permission_prompt', session_id: 'abc' },
-    { now: 10_000 + PERMISSION_PROMPT_DEDUPE_MS, permissionSeen: seen }
-  );
-  assert.equal(later.type, 'permission_prompt');
+  assert.equal(other.consumePermission, undefined);
 });
 
-test('other notification types are not suppressed by a recent permission request', () => {
+test('planning a PermissionRequest does not spend or add a credit before delivery', () => {
+  const pending = { abc: 1 };
+  const plan = planNotification(
+    { hook_event_name: 'PermissionRequest', session_id: 'abc', tool_name: 'Read' },
+    pending
+  );
+  assert.equal(plan.action, 'send-permission');
+  assert.equal(plan.pending, pending);
+  assert.equal(plan.pending.abc, 1);
+});
+
+test('other notification types are not suppressed by outstanding permission credits', () => {
   const result = mapHookEvent(
     { hook_event_name: 'Notification', notification_type: 'idle_prompt', session_id: 'abc' },
-    { now: 12_000, permissionSeen: { abc: 10_000 } }
+    { permissionPending: { abc: 4 } }
   );
   assert.equal(result.type, 'idle_prompt');
   assert.equal(result.title, 'Claude is waiting');

@@ -29,3 +29,6 @@ build/
 # Temporary files
 *.tmp
 *.temp
+
+# Absolute node binary recorded by the installer
+hooks/node-path
