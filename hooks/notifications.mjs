@@ -92,31 +92,44 @@ function sessionIdOf(event) {
   return typeof event.session_id === 'string' ? event.session_id : '';
 }
 
-function pendingTable(pending) {
-  if (!pending || typeof pending !== 'object' || Array.isArray(pending)) return {};
-  return pending;
+export const PERMISSION_PROMPT_DEDUPE_MS = 15_000;
+
+export function activePermissions(pending, now = Date.now()) {
+  const active = {};
+  for (const [sessionId, expiries] of Object.entries(asObject(pending) || {})) {
+    if (!Array.isArray(expiries)) continue;
+    const remaining = expiries.filter((expiry) => Number.isFinite(expiry) && expiry > now);
+    if (remaining.length) {
+      Object.defineProperty(active, sessionId, {
+        value: remaining,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    }
+  }
+  return active;
 }
 
-// Outstanding PermissionRequest alerts that were actually delivered for a session.
-export function permissionPendingCount(pending, sessionId) {
-  const count = pendingTable(pending)[sessionId || ''];
-  if (typeof count !== 'number' || !Number.isInteger(count) || count <= 0) return 0;
-  return count;
-}
-
-export function notePermissionSent(pending, sessionId) {
+export function permissionPendingCount(pending, sessionId, now = Date.now()) {
+  const active = activePermissions(pending, now);
   const key = sessionId || '';
-  const next = { ...pendingTable(pending) };
-  next[key] = permissionPendingCount(next, key) + 1;
-  return next;
+  return Object.hasOwn(active, key) ? active[key].length : 0;
 }
 
-export function notePermissionPromptConsumed(pending, sessionId) {
+export function notePermissionSent(pending, sessionId, now = Date.now()) {
   const key = sessionId || '';
-  const count = permissionPendingCount(pending, key);
-  const next = { ...pendingTable(pending) };
-  if (count <= 1) delete next[key];
-  else next[key] = count - 1;
+  const next = activePermissions(pending, now);
+  const expiries = Object.hasOwn(next, key) ? next[key] : [];
+  return { ...next, [key]: [...expiries, now + PERMISSION_PROMPT_DEDUPE_MS] };
+}
+
+export function notePermissionPromptConsumed(pending, sessionId, now = Date.now()) {
+  const key = sessionId || '';
+  const next = activePermissions(pending, now);
+  if (!Object.hasOwn(next, key)) return next;
+  next[key].shift();
+  if (next[key].length === 0) delete next[key];
   return next;
 }
 
@@ -130,7 +143,7 @@ function permissionMessage(event) {
 }
 
 function notificationFromType(event, type) {
-  const known = NOTIFICATION_COPY[type];
+  const known = Object.hasOwn(NOTIFICATION_COPY, type) ? NOTIFICATION_COPY[type] : null;
   const message = text(event.message);
   if (!known) {
     return {
@@ -152,8 +165,8 @@ function notificationFromType(event, type) {
 
 /**
  * @param {unknown} event Hook JSON from stdin.
- * @param {{ permissionPending?: Record<string, number> }} [options]
- * Counts are PermissionRequest alerts already delivered for each session.
+ * @param {{ permissionPending?: Record<string, number[]>, now?: number }} [options]
+ * Expiry times represent PermissionRequest alerts already delivered for each session.
  * A permission_prompt is dropped only while its session still has some of those.
  * @returns {{ type?: string, title?: string, message?: string, rememberPermission?: boolean, consumePermission?: boolean, sessionId?: string } | null}
  */
@@ -176,7 +189,7 @@ export function mapHookEvent(event, options = {}) {
   if (name === 'Notification') {
     const rawType = text(body.notification_type) || 'notification';
     const sessionId = sessionIdOf(body);
-    if (rawType === 'permission_prompt' && permissionPendingCount(options.permissionPending, sessionId) > 0) {
+    if (rawType === 'permission_prompt' && permissionPendingCount(options.permissionPending, sessionId, options.now) > 0) {
       return { consumePermission: true, sessionId };
     }
     return notificationFromType(body, rawType);
@@ -199,15 +212,17 @@ export function mapHookEvent(event, options = {}) {
  * Sending a PermissionRequest does not change the count here; that happens
  * only after the alert is delivered.
  * @param {unknown} event
- * @param {Record<string, number>} [pending]
+ * @param {Record<string, number[]>} [pending]
  */
-export function planNotification(event, pending = {}) {
-  const mapped = mapHookEvent(event, { permissionPending: pending });
+export function planNotification(event, pending = {}, now = Date.now()) {
+  pending = activePermissions(pending, now);
+  if (event?.hook_event_name === 'Stop') delete pending[sessionIdOf(event)];
+  const mapped = mapHookEvent(event, { permissionPending: pending, now });
   if (!mapped) return { action: 'ignore', pending };
   if (mapped.consumePermission) {
     return {
       action: 'drop',
-      pending: notePermissionPromptConsumed(pending, mapped.sessionId || ''),
+      pending: notePermissionPromptConsumed(pending, mapped.sessionId || '', now),
       sessionId: mapped.sessionId || '',
     };
   }

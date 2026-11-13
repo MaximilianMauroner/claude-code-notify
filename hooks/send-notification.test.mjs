@@ -42,11 +42,11 @@ test('a delivered PermissionRequest records one credit, and only that many promp
   const first = await deliverNotification(permissionRequest, pending, async () => true);
   assert.equal(first.status, 'sent');
   pending = first.pending;
-  assert.equal(pending.abc, 1);
+  assert.equal(pending.abc.length, 1);
 
   const second = await deliverNotification(permissionRequest, pending, async () => true);
   pending = second.pending;
-  assert.equal(pending.abc, 2);
+  assert.equal(pending.abc.length, 2);
 
   const prompt = {
     hook_event_name: 'Notification',
@@ -58,7 +58,7 @@ test('a delivered PermissionRequest records one credit, and only that many promp
   });
   assert.equal(dropped.status, 'dropped');
   pending = dropped.pending;
-  assert.equal(pending.abc, 1);
+  assert.equal(pending.abc.length, 1);
 
   const droppedAgain = await deliverNotification(prompt, pending, async () => true);
   pending = droppedAgain.pending;
@@ -138,4 +138,16 @@ test('the dedupe lock is exclusive across overlapping updates', async () => {
   );
   assert.equal(maxActive, 1);
   assert.equal(fs.existsSync(lockPath), false);
+});
+
+test('a later network prompt is delivered after expiry or a completed turn', async () => {
+  const first = await deliverNotification(permissionRequest, {}, async () => true, 1_000);
+  const prompt = { hook_event_name: 'Notification', notification_type: 'permission_prompt', session_id: 'abc' };
+  const expired = await deliverNotification(prompt, first.pending, async () => true, 16_000);
+  assert.equal(expired.status, 'sent');
+  const stopped = await deliverNotification({ hook_event_name: 'Stop', session_id: 'abc' },
+    first.pending, async () => false, 2_000);
+  assert.deepEqual(stopped.pending, {});
+  const later = await deliverNotification(prompt, stopped.pending, async () => true, 3_000);
+  assert.equal(later.status, 'sent');
 });

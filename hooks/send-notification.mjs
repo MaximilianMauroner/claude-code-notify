@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { notePermissionSent, planNotification } from './notifications.mjs';
+import { activePermissions, notePermissionSent, planNotification } from './notifications.mjs';
 
 const SEEN_PATH = '/tmp/claude-notify-permission-seen.json';
 const LOCK_PATH = `${SEEN_PATH}.lock`;
@@ -61,13 +61,7 @@ export async function withFileLock(lockPath, fn, options = {}) {
 function loadPending(seenPath) {
   try {
     const parsed = JSON.parse(fs.readFileSync(seenPath, 'utf8'));
-    const counts = parsed && parsed.version === 2 ? parsed.counts : null;
-    if (!counts || typeof counts !== 'object' || Array.isArray(counts)) return {};
-    const pending = {};
-    for (const [key, value] of Object.entries(counts)) {
-      if (typeof value === 'number' && Number.isInteger(value) && value > 0) pending[key] = value;
-    }
-    return pending;
+    return parsed?.version === 3 ? activePermissions(parsed.expiries) : {};
   } catch {
     return {};
   }
@@ -75,7 +69,7 @@ function loadPending(seenPath) {
 
 function savePending(seenPath, pending) {
   const tmp = `${seenPath}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify({ version: 2, counts: pending }));
+  fs.writeFileSync(tmp, JSON.stringify({ version: 3, expiries: pending }));
   fs.renameSync(tmp, seenPath);
 }
 
@@ -120,9 +114,9 @@ export function postNotification(payload, options = {}) {
   });
 }
 
-export async function deliverNotification(event, pending, post) {
-  const plan = planNotification(event, pending);
-  if (plan.action === 'ignore') return { pending, status: 'ignored' };
+export async function deliverNotification(event, pending, post, now = Date.now()) {
+  const plan = planNotification(event, pending, now);
+  if (plan.action === 'ignore') return { pending: plan.pending, status: 'ignored' };
   if (plan.action === 'drop') return { pending: plan.pending, status: 'dropped' };
 
   const ok = await post({
@@ -131,14 +125,14 @@ export async function deliverNotification(event, pending, post) {
     message: plan.notification.message,
     timestamp: new Date().toISOString(),
   });
-  if (!ok) return { pending, status: 'failed' };
+  if (!ok) return { pending: plan.pending, status: 'failed' };
   if (plan.action === 'send-permission') {
     return {
-      pending: notePermissionSent(pending, plan.sessionId),
+      pending: notePermissionSent(plan.pending, plan.sessionId, now),
       status: 'sent',
     };
   }
-  return { pending, status: 'sent' };
+  return { pending: plan.pending, status: 'sent' };
 }
 
 function readStdin() {
@@ -164,11 +158,11 @@ async function main() {
   return withFileLock(LOCK_PATH, async () => {
     const pending = loadPending(SEEN_PATH);
     const delivered = await deliverNotification(event, pending, (payload) => postNotification(payload));
+    if (delivered.pending !== pending) savePending(SEEN_PATH, delivered.pending);
     if (delivered.status === 'failed') {
       console.error('claude-code-notify: notification server did not accept the alert');
       return 1;
     }
-    if (delivered.pending !== pending) savePending(SEEN_PATH, delivered.pending);
     return 0;
   });
 }

@@ -136,7 +136,9 @@ function humanize(type: string): string {
 }
 
 export function presentationFor(type: string): NotificationPresentation {
-  const known = NOTIFICATION_PRESENTATIONS[type];
+  const known = Object.prototype.hasOwnProperty.call(NOTIFICATION_PRESENTATIONS, type)
+    ? NOTIFICATION_PRESENTATIONS[type]
+    : undefined;
   if (known) return known;
   return { ...GENERIC_PRESENTATION, label: humanize(type) };
 }

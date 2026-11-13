@@ -1,3 +1,8 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { migrateSettings, removeNotifyHooks } from './claude-settings.mjs';
@@ -156,4 +161,21 @@ test('removing notifier hooks is idempotent and leaves other hooks in place', ()
   const second = removeNotifyHooks(first.settings);
   assert.equal(second.modified, false);
   assert.deepEqual(second.settings, first.settings);
+});
+
+test('the settings CLI installs and removes hooks through a symlinked directory', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-settings-link-'));
+  try {
+    const hooksDir = path.dirname(fileURLToPath(import.meta.url));
+    const link = path.join(root, 'hooks');
+    fs.symlinkSync(hooksDir, link);
+    const settings = path.join(root, 'settings.json');
+    const cli = path.join(link, 'claude-settings.mjs');
+    execFileSync(process.execPath, [cli, 'install', settings]);
+    assert.equal(JSON.parse(fs.readFileSync(settings)).hooks.PermissionRequest.length, 1);
+    execFileSync(process.execPath, [cli, 'uninstall', settings]);
+    assert.deepEqual(JSON.parse(fs.readFileSync(settings)), {});
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

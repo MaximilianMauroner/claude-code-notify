@@ -130,7 +130,7 @@ function installDirFromHere() {
 function isDirectRun() {
   const entry = process.argv[1];
   if (!entry) return false;
-  return path.resolve(entry) === fileURLToPath(import.meta.url);
+  return fs.realpathSync(entry) === fs.realpathSync(fileURLToPath(import.meta.url));
 }
 
 function runCli() {

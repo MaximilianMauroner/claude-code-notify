@@ -154,11 +154,11 @@ function permissionPrompt(sessionId) {
 }
 
 test('drops only as many permission_prompts as PermissionRequest alerts recorded for that session', () => {
-  let pending = { abc: 2, other: 1 };
+  let pending = { abc: [Date.now() + 15_000, Date.now() + 15_000], other: [Date.now() + 15_000] };
   const first = planNotification(permissionPrompt('abc'), pending);
   assert.equal(first.action, 'drop');
   pending = first.pending;
-  assert.equal(pending.abc, 1);
+  assert.equal(pending.abc.length, 1);
 
   const second = planNotification(permissionPrompt('abc'), pending);
   assert.equal(second.action, 'drop');
@@ -168,30 +168,30 @@ test('drops only as many permission_prompts as PermissionRequest alerts recorded
   const third = planNotification(permissionPrompt('abc'), pending);
   assert.equal(third.action, 'send');
   assert.equal(third.notification.type, 'permission_prompt');
-  assert.equal(pending.other, 1);
+  assert.equal(pending.other.length, 1);
 });
 
 test('a permission_prompt for another session is not consumed by this session\'s credits', () => {
-  const other = mapHookEvent(permissionPrompt('other'), { permissionPending: { abc: 3 } });
+  const other = mapHookEvent(permissionPrompt('other'), { permissionPending: { abc: [Date.now() + 15_000] } });
   assert.equal(other.type, 'permission_prompt');
   assert.equal(other.consumePermission, undefined);
 });
 
 test('planning a PermissionRequest does not spend or add a credit before delivery', () => {
-  const pending = { abc: 1 };
+  const pending = { abc: [Date.now() + 15_000] };
   const plan = planNotification(
     { hook_event_name: 'PermissionRequest', session_id: 'abc', tool_name: 'Read' },
     pending
   );
   assert.equal(plan.action, 'send-permission');
-  assert.equal(plan.pending, pending);
-  assert.equal(plan.pending.abc, 1);
+  assert.deepEqual(plan.pending, pending);
+  assert.equal(plan.pending.abc.length, 1);
 });
 
 test('other notification types are not suppressed by outstanding permission credits', () => {
   const result = mapHookEvent(
     { hook_event_name: 'Notification', notification_type: 'idle_prompt', session_id: 'abc' },
-    { permissionPending: { abc: 4 } }
+    { permissionPending: { abc: [Date.now() + 15_000] } }
   );
   assert.equal(result.type, 'idle_prompt');
   assert.equal(result.title, 'Claude is waiting');
@@ -222,4 +222,28 @@ test('events this notifier does not handle produce no notification', () => {
   assert.equal(mapHookEvent({ hook_event_name: 'PreToolUse', tool_name: 'Bash' }), null);
   assert.equal(mapHookEvent(null), null);
   assert.equal(mapHookEvent('permission_prompt'), null);
+});
+
+test('permission credits expire independently at the 15-second boundary', () => {
+  const pending = { abc: [15_000, 20_000] };
+  const first = planNotification(permissionPrompt('abc'), pending, 15_000);
+  assert.equal(first.action, 'drop');
+  assert.deepEqual(first.pending, {});
+  const expired = planNotification(permissionPrompt('abc'), pending, 20_000);
+  assert.equal(expired.action, 'send');
+  assert.deepEqual(expired.pending, {});
+});
+
+test('Stop clears only the completed session credits', () => {
+  const plan = planNotification({ hook_event_name: 'Stop', session_id: 'abc' },
+    { abc: [20_000], other: [20_000] }, 10_000);
+  assert.deepEqual(plan.pending, { other: [20_000] });
+  assert.equal(plan.notification.type, 'stop');
+});
+
+test('inherited property names use the generic notification fallback', () => {
+  for (const type of ['constructor', 'toString', '__proto__']) {
+    assert.deepEqual(alertOf(mapHookEvent({ hook_event_name: 'Notification', notification_type: type })),
+      { type, title: 'Claude Code', message: 'Claude Code notification' });
+  }
 });

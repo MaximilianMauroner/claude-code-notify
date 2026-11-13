@@ -155,7 +155,7 @@ Install from the [Chrome Web Store](https://chromewebstore.google.com/) or [Fire
 
 ## Notification Types
 
-Permission alerts come from `PermissionRequest`, which runs when Claude asks to use a tool. The credit for that alert is stored only after the notification server accepts it. Each delivered `PermissionRequest` then consumes one following `permission_prompt` for the same session. A `permission_prompt` with no remaining credit, including a sandboxed command's network request, is still delivered.
+Permission alerts come from `PermissionRequest`, which runs when Claude asks to use a tool. The credit for that alert is stored only after the notification server accepts it. Each delivered `PermissionRequest` then consumes one following `permission_prompt` for the same session within 15 seconds. Unused credits expire after 15 seconds and are cleared when `Stop` ends the turn. A `permission_prompt` with no remaining credit, including a sandboxed command's network request, is still delivered.
 
 Every other `Notification` type is delivered. A type this version does not know about still shows a generic "Claude Code" notification. When Claude includes a message, that text is shown instead of the default.
 
