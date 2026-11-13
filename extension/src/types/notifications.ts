@@ -1,23 +1,159 @@
-export type NotificationType = 'permission_prompt' | 'idle_prompt' | 'stop';
+export type NotificationTone = 'urgent' | 'attention' | 'complete';
 
-export interface NotificationConfig {
+export interface NotificationPresentation {
   title: string;
-  iconUrl: string;
-  priority: number;
+  label: string;
+  tone: NotificationTone;
   requireInteraction: boolean;
+  iconUrl: string;
 }
 
-export type NotificationConfigMap = Record<NotificationType, NotificationConfig>;
+const ICON = 'icons/icon128.png';
+
+export const NOTIFICATION_PRESENTATIONS: Record<string, NotificationPresentation> = {
+  permission_prompt: {
+    title: 'Claude needs permission',
+    label: 'Permission Needed',
+    tone: 'urgent',
+    requireInteraction: true,
+    iconUrl: ICON,
+  },
+  idle_prompt: {
+    title: 'Claude is waiting',
+    label: 'Waiting for Input',
+    tone: 'attention',
+    requireInteraction: false,
+    iconUrl: ICON,
+  },
+  auth_success: {
+    title: 'Claude signed in',
+    label: 'Signed In',
+    tone: 'complete',
+    requireInteraction: false,
+    iconUrl: ICON,
+  },
+  auth_storage_failure: {
+    title: "Claude couldn't save credentials",
+    label: 'Credential Save Failed',
+    tone: 'urgent',
+    requireInteraction: true,
+    iconUrl: ICON,
+  },
+  elicitation_dialog: {
+    title: 'Claude needs a form filled',
+    label: 'Form Needed',
+    tone: 'urgent',
+    requireInteraction: true,
+    iconUrl: ICON,
+  },
+  elicitation_url_dialog: {
+    title: 'Claude needs you to open a link',
+    label: 'Link Needed',
+    tone: 'urgent',
+    requireInteraction: true,
+    iconUrl: ICON,
+  },
+  elicitation_complete: {
+    title: 'Claude elicitation finished',
+    label: 'Elicitation Complete',
+    tone: 'attention',
+    requireInteraction: false,
+    iconUrl: ICON,
+  },
+  elicitation_response: {
+    title: 'Claude sent an elicitation response',
+    label: 'Elicitation Response',
+    tone: 'attention',
+    requireInteraction: false,
+    iconUrl: ICON,
+  },
+  agent_needs_input: {
+    title: 'A background agent needs input',
+    label: 'Agent Needs Input',
+    tone: 'urgent',
+    requireInteraction: true,
+    iconUrl: ICON,
+  },
+  agent_completed: {
+    title: 'A background agent finished',
+    label: 'Agent Finished',
+    tone: 'complete',
+    requireInteraction: false,
+    iconUrl: ICON,
+  },
+  quota_auto_resume_fired: {
+    title: 'Claude resumed after a usage limit',
+    label: 'Resumed After Limit',
+    tone: 'complete',
+    requireInteraction: false,
+    iconUrl: ICON,
+  },
+  quota_auto_resume_stale: {
+    title: 'Claude is waiting after a usage limit',
+    label: 'Usage Limit Reset',
+    tone: 'urgent',
+    requireInteraction: true,
+    iconUrl: ICON,
+  },
+  quota_auto_resume_disabled: {
+    title: 'Claude stopped waiting on a usage limit',
+    label: 'Auto-Resume Stopped',
+    tone: 'attention',
+    requireInteraction: false,
+    iconUrl: ICON,
+  },
+  plugin_notification: {
+    title: 'Claude plugin notification',
+    label: 'Plugin',
+    tone: 'attention',
+    requireInteraction: false,
+    iconUrl: ICON,
+  },
+  stop: {
+    title: 'Claude finished',
+    label: 'Finished',
+    tone: 'complete',
+    requireInteraction: false,
+    iconUrl: ICON,
+  },
+};
+
+const GENERIC_PRESENTATION: NotificationPresentation = {
+  title: 'Claude Code',
+  label: 'Notification',
+  tone: 'attention',
+  requireInteraction: false,
+  iconUrl: ICON,
+};
+
+function humanize(type: string): string {
+  if (!/^[A-Za-z0-9_-]+$/.test(type) || type === 'notification') return 'Notification';
+  return type
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+export function presentationFor(type: string): NotificationPresentation {
+  const known = Object.prototype.hasOwnProperty.call(NOTIFICATION_PRESENTATIONS, type)
+    ? NOTIFICATION_PRESENTATIONS[type]
+    : undefined;
+  if (known) return known;
+  return { ...GENERIC_PRESENTATION, label: humanize(type) };
+}
 
 export interface StoredNotification {
-  type: NotificationType;
+  type: string;
+  title?: string;
   message?: string;
   timestamp?: string;
   receivedAt: string;
 }
 
 export interface IncomingNotification {
-  type: NotificationType | 'connected' | 'pong';
+  type: string;
+  title?: string;
   message?: string;
   timestamp?: string;
 }

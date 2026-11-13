@@ -1,13 +1,6 @@
 import browser from 'webextension-polyfill';
-import type { Settings, StoredNotification, NotificationType, StatusResponse } from './types';
-import { DEFAULT_SETTINGS } from './types';
-
-// Type labels for display
-const TYPE_LABELS: Record<NotificationType, string> = {
-  permission_prompt: 'Permission Needed',
-  idle_prompt: 'Waiting for Input',
-  stop: 'Finished',
-};
+import type { Settings, StoredNotification, StatusResponse } from './types';
+import { DEFAULT_SETTINGS, presentationFor } from './types';
 
 // DOM elements
 const statusEl = document.getElementById('status') as HTMLDivElement;
@@ -79,8 +72,10 @@ function renderNotifications(notifications: StoredNotification[]): void {
   notifications.forEach((n, index) => {
     const time = new Date(n.receivedAt || n.timestamp || '').toLocaleTimeString();
 
+    const presentation = presentationFor(n.type);
     const item = document.createElement('div');
-    item.className = `notification-item ${n.type}`;
+    const typeClass = /^[A-Za-z0-9_-]+$/.test(n.type) ? n.type : '';
+    item.className = `notification-item ${presentation.tone} ${typeClass}`.trim();
 
     const dismissBtn = document.createElement('button');
     dismissBtn.className = 'notification-dismiss';
@@ -94,7 +89,7 @@ function renderNotifications(notifications: StoredNotification[]): void {
 
     const typeSpan = document.createElement('span');
     typeSpan.className = 'notification-type';
-    typeSpan.textContent = TYPE_LABELS[n.type] || n.type;
+    typeSpan.textContent = n.title || presentation.label;
 
     const messageSpan = document.createElement('span');
     messageSpan.className = 'notification-message';

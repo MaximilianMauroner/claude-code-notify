@@ -1,8 +1,5 @@
 import browser from 'webextension-polyfill';
 import type {
-  NotificationType,
-  NotificationConfig,
-  NotificationConfigMap,
   StoredNotification,
   IncomingNotification,
   Settings,
@@ -10,9 +7,9 @@ import type {
   StatusResponse,
   SuccessResponse,
   ConnectionStatus,
-  BadgeStatus,
+  NotificationTone,
 } from './types';
-import { DEFAULT_SETTINGS } from './types';
+import { DEFAULT_SETTINGS, presentationFor } from './types';
 
 // Configuration
 const WS_URL = 'ws://localhost:3099';
@@ -113,40 +110,18 @@ let keepaliveInterval: ReturnType<typeof setInterval> | null = null;
 let isConnected = false;
 let recentNotifications: StoredNotification[] = [];
 let unreadCount = 0;
-let lastNotificationType: NotificationType | null = null;
+let lastNotificationType: string | null = null;
 
-// Notification configuration
-const NOTIFICATION_CONFIG: NotificationConfigMap = {
-  permission_prompt: {
-    title: 'Claude needs permission',
-    iconUrl: 'icons/icon128.png',
-    priority: 2,
-    requireInteraction: true,
-  },
-  idle_prompt: {
-    title: 'Claude is waiting',
-    iconUrl: 'icons/icon128.png',
-    priority: 1,
-    requireInteraction: false,
-  },
-  stop: {
-    title: 'Claude finished',
-    iconUrl: 'icons/icon128.png',
-    priority: 0,
-    requireInteraction: false,
-  },
+const CONNECTION_COLORS: Record<ConnectionStatus, string> = {
+  connected: '#22c55e',
+  disconnected: '#6b7280',
+  error: '#ef4444',
 };
 
-// Badge colors for different states
-const BADGE_COLORS: Record<BadgeStatus, string> = {
-  // Connection states
-  connected: '#22c55e', // Green
-  disconnected: '#6b7280', // Gray
-  error: '#ef4444', // Red
-  // Notification types
-  permission_prompt: '#ef4444', // Red - urgent
-  idle_prompt: '#f97316', // Orange - attention needed
-  stop: '#22c55e', // Green - complete
+const TONE_COLORS: Record<NotificationTone, string> = {
+  urgent: '#ef4444',
+  attention: '#f97316',
+  complete: '#22c55e',
 };
 
 // Initialize connection
@@ -262,20 +237,19 @@ function updateBadge(status: ConnectionStatus): void {
     error: 'X',
   };
 
-  setBadge(texts[status], BADGE_COLORS[status]);
+  setBadge(texts[status], CONNECTION_COLORS[status]);
 }
 
 // Update badge for notifications
 function updateNotificationBadge(): void {
   if (unreadCount === 0) {
     // Clear badge, show connected state
-    setBadge('', BADGE_COLORS.connected);
+    setBadge('', CONNECTION_COLORS.connected);
     lastNotificationType = null;
   } else {
-    // Show count with color based on most recent notification type
     const color = lastNotificationType
-      ? BADGE_COLORS[lastNotificationType]
-      : BADGE_COLORS.permission_prompt;
+      ? TONE_COLORS[presentationFor(lastNotificationType).tone]
+      : TONE_COLORS.urgent;
     const text = unreadCount > 9 ? '9+' : unreadCount.toString();
     setBadge(text, color);
   }
@@ -302,8 +276,7 @@ async function showNotification(
 ): Promise<void> {
   if (data.type === 'connected' || data.type === 'pong') return;
 
-  const config: NotificationConfig = NOTIFICATION_CONFIG[data.type];
-  if (!config) return;
+  const config = presentationFor(data.type);
 
   const settings = await getSettings();
   const shouldPlaySound = settings.soundEnabled && !options?.skipSound;
@@ -325,12 +298,12 @@ async function showNotification(
   const notificationId = `claude-${Date.now()}`;
   const iconUrl = browser.runtime.getURL(config.iconUrl);
 
-  const notificationOptions: browser.Notifications.CreateNotificationOptions = {
+  // `silent` is a Chrome notification option the polyfill types omit.
+  const notificationOptions: browser.Notifications.CreateNotificationOptions & { silent?: boolean } = {
     type: 'basic',
     iconUrl,
-    title: config.title,
+    title: data.title || config.title,
     message: data.message || 'Claude Code requires your attention',
-    // Suppress OS sounds when disabled or when custom audio is available.
     silent: !shouldPlaySound || useCustomSound,
   };
 
@@ -372,6 +345,7 @@ function addRecentNotification(notification: IncomingNotification): void {
 
   const stored: StoredNotification = {
     type: notification.type,
+    title: notification.title,
     message: notification.message,
     timestamp: notification.timestamp,
     receivedAt: new Date().toISOString(),
@@ -414,8 +388,8 @@ async function loadState(): Promise<void> {
     if (typeof result.unreadCount === 'number') {
       unreadCount = result.unreadCount;
     }
-    if (result.lastNotificationType) {
-      lastNotificationType = result.lastNotificationType as NotificationType;
+    if (typeof result.lastNotificationType === 'string') {
+      lastNotificationType = result.lastNotificationType;
     }
     // Load debug mode setting
     if (result.settings) {
@@ -478,7 +452,7 @@ browser.runtime.onMessage.addListener(
     }
 
     if (msg.type === 'removeNotification') {
-      const index = (msg as { type: string; index: number }).index;
+      const index = msg.index;
       if (index >= 0 && index < recentNotifications.length) {
         recentNotifications.splice(index, 1);
         // Update unread count if needed

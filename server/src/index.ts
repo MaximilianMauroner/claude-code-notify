@@ -7,10 +7,9 @@ const PORT = 3099;
 const PID_FILE = '/tmp/claude-notify-server.pid';
 const IDLE_SHUTDOWN_MS = 5 * 60 * 1000;
 
-type NotificationType = 'permission_prompt' | 'idle_prompt' | 'stop';
-
 interface Notification {
-  type: NotificationType;
+  type: string;
+  title?: string;
   message?: string;
   timestamp?: string;
 }
@@ -50,7 +49,19 @@ const clients = new Set<WebSocket>();
 let idleShutdownTimer: NodeJS.Timeout | null = null;
 let isShuttingDown = false;
 
-const VALID_TYPES: NotificationType[] = ['permission_prompt', 'idle_prompt', 'stop'];
+function asNotification(value: unknown): Notification | null {
+  if (!value || typeof value !== 'object') return null;
+  const body = value as { type?: unknown; title?: unknown; message?: unknown; timestamp?: unknown };
+  if (typeof body.type !== 'string') return null;
+  const type = body.type.trim();
+  if (!type || type === 'connected' || type === 'pong') return null;
+
+  const notification: Notification = { type };
+  if (typeof body.title === 'string' && body.title.trim()) notification.title = body.title;
+  if (typeof body.message === 'string' && body.message.trim()) notification.message = body.message;
+  if (typeof body.timestamp === 'string' && body.timestamp.trim()) notification.timestamp = body.timestamp;
+  return notification;
+}
 
 // Create HTTP server for receiving notifications from Claude Code hooks
 const httpServer = http.createServer(
@@ -75,19 +86,16 @@ const httpServer = http.createServer(
 
       req.on('end', () => {
         try {
-          const notification = JSON.parse(body) as Notification;
-
-          // Add timestamp if not present
-          if (!notification.timestamp) {
-            notification.timestamp = new Date().toISOString();
-          }
-
-          // Validate notification type
-          if (!VALID_TYPES.includes(notification.type)) {
+          const notification = asNotification(JSON.parse(body));
+          if (!notification) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             const errorResponse: ErrorResponse = { error: 'Invalid notification type' };
             res.end(JSON.stringify(errorResponse));
             return;
+          }
+
+          if (!notification.timestamp) {
+            notification.timestamp = new Date().toISOString();
           }
 
           // Broadcast to all connected WebSocket clients

@@ -11,6 +11,8 @@
     "build:extension": "cd extension && bun run build",
     "build:server": "cd server && bun run build",
     "typecheck": "tsc --noEmit -p extension && tsc --noEmit -p server",
+    "lint": "node --check hooks/notifications.mjs && node --check hooks/claude-settings.mjs && node --check hooks/send-notification.mjs && node --check hooks/notifications.test.mjs && node --check hooks/claude-settings.test.mjs && node --check hooks/send-notification.test.mjs",
+    "test": "node --test hooks/notifications.test.mjs hooks/claude-settings.test.mjs hooks/send-notification.test.mjs",
     "typecheck:extension": "tsc --noEmit -p extension",
     "typecheck:server": "tsc --noEmit -p server",
     "sync-version": "node sync-version.mjs",

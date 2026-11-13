@@ -373,17 +373,20 @@ h2 {
   background: var(--dismiss-active);
 }
 
-.notification-item.permission_prompt {
+.notification-item.permission_prompt,
+.notification-item.urgent {
   border-left-color: #ef4444;
   background: linear-gradient(90deg, rgba(239, 68, 68, 0.08), transparent 40%);
 }
 
-.notification-item.idle_prompt {
+.notification-item.idle_prompt,
+.notification-item.attention {
   border-left-color: #f59e0b;
   background: linear-gradient(90deg, rgba(245, 158, 11, 0.08), transparent 40%);
 }
 
-.notification-item.stop {
+.notification-item.stop,
+.notification-item.complete {
   border-left-color: #22c55e;
   background: linear-gradient(90deg, rgba(34, 197, 94, 0.08), transparent 40%);
 }

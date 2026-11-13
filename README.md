@@ -16,7 +16,7 @@ curl -fsSL https://raw.githubusercontent.com/MaximilianMauroner/claude-code-noti
 1. Clones the repository to `~/.claude/claude-code-notify`
 2. Builds the notification server
 3. Makes hook scripts executable
-4. Configures Claude Code hooks in `~/.claude/settings.json`
+4. Configures Claude Code hooks in `~/.claude/settings.json`. Re-running replaces this installer's hooks and leaves every other hook in place.
 
 **Requirements:** git, node, npm
 
@@ -73,42 +73,59 @@ npm run build
 ```bash
 chmod +x ~/.claude/claude-code-notify/hooks/notify.sh
 chmod +x ~/.claude/claude-code-notify/hooks/ensure-server.sh
+node -p 'process.execPath' > ~/.claude/claude-code-notify/hooks/node-path
 ```
+
+The hook runs that recorded binary. Claude Code does not put `node` on the hook `PATH`.
 
 ### 4. Configure Claude Code Hooks
 
-Add the following to your `~/.claude/settings.json` (create it if it doesn't exist):
+Add the following to your `~/.claude/settings.json` (create it if it doesn't exist). The installer writes the same fields with the script path quoted absolutely.
+
+`PermissionRequest` fires when Claude asks to use a tool. `matcher` `""` matches every tool. The hook is `async`, so it does not block the prompt, and it prints no decision, so it never allows or denies. `onFailure` is `continue`, so a failed hook does not deny the request. `timeout` is seconds. Claude Code does not enforce it while `async` is true.
+
+`Notification` uses the same empty matcher, which matches every notification type, including types added later. `Stop` has no matcher: that event does not support one.
 
 ```json
 {
   "hooks": {
-    "Notification": [
+    "PermissionRequest": [
       {
-        "matcher": "permission_prompt",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "CLAUDE_HOOK_NAME=permission_prompt ~/.claude/claude-code-notify/hooks/notify.sh"
+            "command": "\"$HOME/.claude/claude-code-notify/hooks/notify.sh\"",
+            "timeout": 15,
+            "async": true,
+            "onFailure": "continue"
           }
         ]
-      },
+      }
+    ],
+    "Notification": [
       {
-        "matcher": "idle_prompt",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "CLAUDE_HOOK_NAME=idle_prompt ~/.claude/claude-code-notify/hooks/notify.sh"
+            "command": "\"$HOME/.claude/claude-code-notify/hooks/notify.sh\"",
+            "timeout": 15,
+            "async": true,
+            "onFailure": "continue"
           }
         ]
       }
     ],
     "Stop": [
       {
-        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "CLAUDE_HOOK_NAME=stop ~/.claude/claude-code-notify/hooks/notify.sh"
+            "command": "\"$HOME/.claude/claude-code-notify/hooks/notify.sh\"",
+            "timeout": 15,
+            "async": true,
+            "onFailure": "continue"
           }
         ]
       }
@@ -138,11 +155,29 @@ Install from the [Chrome Web Store](https://chromewebstore.google.com/) or [Fire
 
 ## Notification Types
 
-| Event | Title | Behavior |
-|-------|-------|----------|
-| `permission_prompt` | "Claude needs permission" | High priority, stays visible until clicked |
-| `idle_prompt` | "Claude is waiting" | Normal priority, auto-dismisses |
-| `stop` | "Claude finished" | Low priority, auto-dismisses |
+Permission alerts come from `PermissionRequest`, which runs when Claude asks to use a tool. The credit for that alert is stored only after the notification server accepts it. Each delivered `PermissionRequest` then consumes one following `permission_prompt` for the same session within 15 seconds. Unused credits expire after 15 seconds and are cleared when `Stop` ends the turn. A `permission_prompt` with no remaining credit, including a sandboxed command's network request, is still delivered.
+
+Every other `Notification` type is delivered. A type this version does not know about still shows a generic "Claude Code" notification. When Claude includes a message, that text is shown instead of the default.
+
+| Source | Title | Default message | Behavior |
+|--------|-------|-----------------|----------|
+| `PermissionRequest` | Claude needs permission | Tool name and command, description, or path | Stays visible until clicked |
+| `permission_prompt` | Claude needs permission | Claude Code needs your permission to proceed | Stays visible until clicked |
+| `idle_prompt` | Claude is waiting | Claude Code is waiting for your input | Auto-dismisses |
+| `auth_success` | Claude signed in | Claude Code finished signing in | Auto-dismisses |
+| `auth_storage_failure` | Claude couldn't save credentials | Sign-in finished, but Claude Code couldn't save the new credentials | Stays visible until clicked |
+| `elicitation_dialog` | Claude needs a form filled | An MCP server is waiting for you to fill in a form | Stays visible until clicked |
+| `elicitation_url_dialog` | Claude needs you to open a link | An MCP server is waiting for you to open a browser link | Stays visible until clicked |
+| `elicitation_complete` | Claude elicitation finished | An MCP server reported that a URL elicitation is complete | Auto-dismisses |
+| `elicitation_response` | Claude sent an elicitation response | An MCP elicitation response was sent back to the server | Auto-dismisses |
+| `agent_needs_input` | A background agent needs input | A background session is waiting for your input | Stays visible until clicked |
+| `agent_completed` | A background agent finished | A background session finished or failed | Auto-dismisses |
+| `quota_auto_resume_fired` | Claude resumed after a usage limit | Claude Code continued your task after a usage limit | Auto-dismisses |
+| `quota_auto_resume_stale` | Claude is waiting after a usage limit | A usage limit reset while your computer was asleep. Press Enter to continue | Stays visible until clicked |
+| `quota_auto_resume_disabled` | Claude stopped waiting on a usage limit | Claude Code ended its wait for a usage limit without continuing | Auto-dismisses |
+| `plugin_notification` | Plugin name, or "Claude plugin notification" | A plugin raised a notification | Auto-dismisses |
+| `Stop` | Claude finished | Claude Code has finished and is ready for your next instruction | Auto-dismisses. Uses Claude's last message when one is sent |
+| Any other notification type | Claude's title, or "Claude Code" | Claude's message, or "Claude Code notification" | Auto-dismisses |
 
 ## Extension Settings
 
@@ -162,10 +197,13 @@ Click the extension icon to access settings:
 Send a notification to connected browser extensions.
 
 **Request:**
+`type` is the notification kind. Documented kinds are listed above. Any other non-empty `type` is delivered as a generic notification.
+
 ```json
 {
-  "type": "permission_prompt" | "idle_prompt" | "stop",
-  "message": "Description of what Claude needs"
+  "type": "permission_prompt",
+  "title": "Claude needs permission",
+  "message": "Bash: Remove node_modules directory"
 }
 ```
 
@@ -211,8 +249,8 @@ Check server status.
 ### Hooks not triggering
 
 1. Verify Claude Code settings are configured correctly
-2. Check that scripts are executable: `chmod +x hooks/notify.sh hooks/ensure-server.sh`
-3. Test the hook manually: `echo '{}' | CLAUDE_HOOK_NAME=permission_prompt ./hooks/notify.sh`
+2. Check that scripts are executable and the node binary is recorded: `chmod +x hooks/notify.sh hooks/ensure-server.sh && node -p 'process.execPath' > hooks/node-path`
+3. Test the hook manually: `echo '{"hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"ls"}}' | ./hooks/notify.sh`
 
 ### Manual Server Management
 
@@ -257,7 +295,10 @@ claude-code-notify/
 │   ├── dist/                 # Compiled output
 │   └── icons/
 ├── hooks/
-│   ├── notify.sh             # Hook script for notifications
+│   ├── notify.sh             # Hook entrypoint; runs the recorded node binary
+│   ├── send-notification.mjs # Reads hook JSON and posts /notify
+│   ├── notifications.mjs     # Event to title and message
+│   ├── claude-settings.mjs   # Idempotent settings install and removal
 │   └── ensure-server.sh      # Auto-starts server if not running
 └── README.md
 ```

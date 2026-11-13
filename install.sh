@@ -71,7 +71,9 @@ make_scripts_executable() {
   echo "[3/4] Setting up scripts..."
   chmod +x "$INSTALL_DIR/hooks/notify.sh"
   chmod +x "$INSTALL_DIR/hooks/ensure-server.sh"
+  node -p 'process.execPath' > "$INSTALL_DIR/hooks/node-path"
   echo "  - Scripts are now executable"
+  echo "  - Recorded node at $(cat "$INSTALL_DIR/hooks/node-path")"
 
   # Start the server in the background
   echo "  - Starting notification server..."
@@ -93,71 +95,10 @@ configure_claude_settings() {
     echo "  - Backed up existing settings"
   fi
 
-  # Use Node.js to merge settings (handles JSON properly)
-  node -e "
-const fs = require('fs');
-const settingsPath = '$CLAUDE_SETTINGS';
-const installDir = '$INSTALL_DIR';
-
-// Read existing settings
-let settings = {};
-try {
-  const content = fs.readFileSync(settingsPath, 'utf8');
-  settings = JSON.parse(content);
-} catch (e) {
-  settings = {};
-}
-
-// Ensure hooks object exists
-if (!settings.hooks) {
-  settings.hooks = {};
-}
-
-// Define the notification hooks with absolute paths
-const notifyScript = installDir + '/hooks/notify.sh';
-
-const notificationHooks = [
-  {
-    matcher: 'permission_prompt',
-    hooks: [
-      {
-        type: 'command',
-        command: 'CLAUDE_HOOK_NAME=permission_prompt ' + notifyScript
-      }
-    ]
-  },
-  {
-    matcher: 'idle_prompt',
-    hooks: [
-      {
-        type: 'command',
-        command: 'CLAUDE_HOOK_NAME=idle_prompt ' + notifyScript
-      }
-    ]
-  }
-];
-
-const stopHooks = [
-  {
-    matcher: '',
-    hooks: [
-      {
-        type: 'command',
-        command: 'CLAUDE_HOOK_NAME=stop ' + notifyScript
-      }
-    ]
-  }
-];
-
-// Merge hooks (preserve existing, add/update notification hooks)
-// For Notification hooks, we replace existing notification-related hooks
-settings.hooks.Notification = notificationHooks;
-settings.hooks.Stop = stopHooks;
-
-// Write updated settings
-fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
-console.log('  - Hooks configured successfully');
-"
+  # Replace this installer's hooks in place. Other hooks are left alone,
+  # and running the installer again does not add a second copy.
+  node "$INSTALL_DIR/hooks/claude-settings.mjs" install "$CLAUDE_SETTINGS"
+  echo "  - Hooks configured successfully"
 }
 
 # Print browser extension instructions
