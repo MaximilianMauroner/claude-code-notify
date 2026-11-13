@@ -114,8 +114,8 @@ export function postNotification(payload, options = {}) {
   });
 }
 
-export async function deliverNotification(event, pending, post, now = Date.now()) {
-  const plan = planNotification(event, pending, now);
+export async function deliverNotification(event, pending, post, clock = Date.now) {
+  const plan = planNotification(event, pending, clock());
   if (plan.action === 'ignore') return { pending: plan.pending, status: 'ignored' };
   if (plan.action === 'drop') return { pending: plan.pending, status: 'dropped' };
 
@@ -128,7 +128,7 @@ export async function deliverNotification(event, pending, post, now = Date.now()
   if (!ok) return { pending: plan.pending, status: 'failed' };
   if (plan.action === 'send-permission') {
     return {
-      pending: notePermissionSent(plan.pending, plan.sessionId, now),
+      pending: notePermissionSent(plan.pending, plan.sessionId, clock()),
       status: 'sent',
     };
   }
